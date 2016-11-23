@@ -2,6 +2,7 @@ import datetime as dt
 from dateutil.relativedelta import relativedelta
 import numpy as np
 import os
+import scipy.stats
 from plot_index import plot_index
 from spi import SPI
 
@@ -28,7 +29,7 @@ if __name__=='__main__':
     )
     
     # Set distribution parameters
-    spi.set_distribution_params(dist_type='gamma')
+    spi.set_distribution_params(dist_type='gengamma')
     
     # Calculate SPI
     data = spi.calculate(rainfall_data, starting_month=1)
@@ -37,8 +38,17 @@ if __name__=='__main__':
     n_dates = np.shape(data)[0]
     date_list = create_datelist(dt.date(2000,1,1), n_dates)
     
-    # Plot
-    #plot_index(date_list, data)
+    # Plot SPI
+    plot_index(date_list, data)
     print np.squeeze(data)
 
-    print len(data)
+    
+    # Test find best distribution fit
+    dist_list = ['gamma', 'gengamma', 'fisk', 'dweibull', 'logistic']
+    
+    test_data = scipy.stats.gamma.rvs(10., size=100)
+    sse = spi.best_fit_distribution(test_data, dist_list, bins=20, 
+                                    save_file='test.jpg')
+    
+    for k in sse:
+        print "distribution = {0:}; SSE = {1:}".format(k, sse[k])
