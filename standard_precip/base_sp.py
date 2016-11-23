@@ -218,12 +218,12 @@ class BaseStandardIndex(object):
                 # Find all nans in data and remove for fitting distribution
                 nan_inds = np.where(np.isnan(data_month))[0]
                 data_month = data_month[~np.isnan(data_month)]
-                data_month.sort()
+                data_month_sorted= np.sort(data_month)
                 mnth_inds = np.delete(mnth_inds, nan_inds)                
                 
                 # Fit distribution for particular series and month
                 params = self.fit_distribution(
-                    data_month, self.dist_type, **self.dist_kwargs
+                    data_month_sorted, self.dist_type, **self.dist_kwargs
                 )
                 
                 # Calculate SPI/SPEI
