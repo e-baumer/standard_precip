@@ -29,11 +29,67 @@ distribution (see Notes).
 
 ## Example Use
 
+Imports
+`
+import datetime as dt
+from dateutil.relativedelta import relativedelta
+import numpy as np
+import os
+from plot_index import plot_index
+from spi import SPI
+`
+
+A useful function for calculating a list of dates
+`
+def create_datelist(start_date, n_months):
+    
+    dates = [start_date + relativedelta(months=i) 
+              for i in range(0, n_months)]
+    
+    return np.array(dates)
+`
+
+Read example monthly precipitation data (included in data folder).
+`rainfall_data = np.genfromtxt('rainfall_test.csv', delimiter=',')`
+
+For this example we will calculate SPI, therefore initialize the SPI class
+`spi = SPI()`
+
+Set rolling window average parameters. In this example since window_type is None
+we don't actually implement a rolling window.
+`
+spi.set_rolling_window_params(
+    span=1, window_type=None, center=True
+)
+`
+Set statistical distribution fit parameters. When calling SPI class the default
+distribution is a generalized gamma distribution which is a three parameter gamma
+distribution. Here we set it to a gamma distribution (two parameters) for no reason.
+`
+spi.set_distribution_params(dist_type='gamma')
+`
+
+Calculate SPI. The parameter starting_month indicates the month at which the 
+data starts.
+`
+data = spi.calculate(rainfall_data, starting_month=1)
+`
+Create a date list for plotting.
+`
+n_dates = np.shape(data)[0]
+date_list = create_datelist(dt.date(2000,1,1), n_dates)
+`
+
+Plot data
+`
+plot_index(date_list, data)
+`
 
 ## TO DO
 1. Implement calculations of PET
-2. Add plotting
+2. Improve plotting
 3. Finish generator to process large datasets
+4. Add metric for fit of distribution to historical data
 
 ## Notes
 1. Although the user is allowed to select the distribution (from scipy stats)

@@ -20,18 +20,18 @@ if __name__=='__main__':
     rainfall_data = np.genfromtxt(precip_file, delimiter=',')
     
     # Initialize SPI class
-    test_spi = SPI() 
+    spi = SPI() 
     
     # Set rolling window parameters
-    test_spi.set_rolling_window_params(
+    spi.set_rolling_window_params(
         span=1, window_type=None, center=True
     )
     
     # Set distribution parameters
-    test_spi.set_distribution_params(dist_type='gamma')
+    spi.set_distribution_params(dist_type='gamma')
     
     # Calculate SPI
-    data = test_spi.calculate(rainfall_data, starting_month=1)
+    data = spi.calculate(rainfall_data, starting_month=1)
     
     # Create date list for plotting
     n_dates = np.shape(data)[0]
