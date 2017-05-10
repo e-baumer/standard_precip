@@ -1,6 +1,7 @@
 import datetime as dt
 from dateutil.relativedelta import relativedelta
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import scipy
@@ -250,3 +251,43 @@ class BaseStandardIndex(object):
         norm_ppf = scipy.stats.norm.ppf(cdf)
         
         return norm_ppf
+
+    
+    def best_fit_distribution(self, data, dist_list, bins=10, save_file=None):
+        '''
+        Calculates the Sum of the Squares error between fitted distribution and
+        pdf. 
+        Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
+        '''
+        
+        y, x = np.histogram(data, bins=bins, normed=True)
+        x = (x + np.roll(x, -1))[:-1] / 2.0        
+        
+        sse = {}
+        
+
+        fig, ax = plt.subplots()
+        ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, 
+               label='data')
+        
+        for i,dist_name in enumerate(dist_list):
+            dist = getattr(scipy.stats, dist_name)
+            
+            params = dist.fit(data)
+            
+            pdf = dist.pdf(x, *params[:-2], loc=params[-2], scale=params[-1])
+            
+            sse[dist_name] = np.sum((y - pdf)**2)
+            
+            ax.plot(x, pdf, label=dist_name)
+                
+
+        ax.legend()
+        ax.grid(True)
+        
+        if save_file:
+            plt.savefig(save_file, dpi=400)
+        else:
+            plt.show()
+            
+        return sse
