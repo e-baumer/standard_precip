@@ -36,7 +36,7 @@ from dateutil.relativedelta import relativedelta
 import numpy as np
 import os
 from plot_index import plot_index
-from spi import SPI
+from standard_precip.spi import SPI
 ```
 
 A useful function for calculating a list of dates
