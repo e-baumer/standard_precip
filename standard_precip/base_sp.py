@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import datetime as dt
 from dateutil.relativedelta import relativedelta
 import numpy as np
@@ -138,7 +139,7 @@ class BaseStandardIndex(object):
         try:
             self.distr = getattr(scipy.stats, dist_type)
         except AttributeError:
-            print "{} is not a valid distribution type".format(dist_type)
+            print ("{} is not a valid distribution type".format(dist_type))
         
         
         # Fit distribution
@@ -168,7 +169,7 @@ class BaseStandardIndex(object):
         
         # Check if distribution has been fit on historical data
         if self.dist_type is None: 
-            print "You must fit a distribution first"
+            print ("You must fit a distribution first")
             return False
         
         if isinstance(data, types.GeneratorType):
