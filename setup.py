@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='standard_precip',
-      version='0.2',
+      version='0.3',
       description='Functions to calculate SPI and SPEI',
       url='http://github.com/e-baumer/standard_precip',
       author='Eric Nussbaumer',
