@@ -70,7 +70,7 @@ Set statistical distribution fit parameters. When calling SPI class the default
 distribution is a generalized gamma distribution which is a three parameter gamma
 distribution. Here we set it to a gamma distribution (two parameters) for no reason.
 ```
-spi.set_distribution_params(dist_type='gamma')
+spi.set_distribution_params(dist_type='gam')
 ```
 
 Calculate SPI. The parameter starting_month indicates the month at which the 
