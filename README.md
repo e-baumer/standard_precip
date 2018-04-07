@@ -27,6 +27,8 @@ a log-logistic distribution. The default distribution for the SPEI function is
 the Fisk or log-logistic distribution. However, the user can select their own 
 distribution (see Notes).
 
+Currently on compatible with Python3.
+
 ## Example Use
 
 Imports
