@@ -1,6 +1,5 @@
 # [Standard Precipitation (Evapotranspiration) Index](http://sac.csic.es/spei/home.html)
-<!--[![Build Status]()]()-->
-https://travis-ci.org/e-baumer/standard_precip.svg?branch=master
+[![Build Status](https://travis-ci.org/e-baumer/standard_precip.svg?branch=master)](https://travis-ci.org/e-baumer/standard_precip)
 
 ## Overview
 This is a Python implementation for calculating the Standard Precipitation Index
