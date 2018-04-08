@@ -1,5 +1,5 @@
 # [Standard Precipitation (Evapotranspiration) Index](http://sac.csic.es/spei/home.html)
-<!--[![Build Status]()]()-->
+<!--[![Build Status](https://travis-ci.org/e-baumer/standard_precip.svg?branch=master)]()-->
 
 
 ## Overview
