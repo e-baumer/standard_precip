@@ -1,6 +1,6 @@
 numpy>=1.14.2
 matplotlib>=2.2.2
 scipy>=1.0.0
-dateutil>-2.6.1
+dateutil>=2.6.1
 pandas>=0.22.0
 lmoments3>=1.0.4
