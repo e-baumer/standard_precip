@@ -79,6 +79,9 @@ celerybeat-schedule
 # dotenv
 .env
 
+# swap files
+*.swp
+
 # virtualenv
 .venv/
 venv/

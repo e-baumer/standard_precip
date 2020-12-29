@@ -8,7 +8,7 @@ import scipy
 import scipy.stats
 import types
 
-from lmoments3 import distr
+from .lmoments import distr
 
 
 def create_month_cycle(n_months, start_month=1):
