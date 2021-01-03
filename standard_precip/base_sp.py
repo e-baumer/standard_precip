@@ -1,98 +1,54 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-import datetime as dt
-from dateutil.relativedelta import relativedelta
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-import scipy
-import scipy.stats
 import types
+import scipy
+import numpy as np
+import pandas as pd
+import datetime as dt
+import scipy.stats as scs
+from functools import reduce
+import matplotlib.pyplot as plt
+from dateutil.relativedelta import relativedelta
 
 from .lmoments import distr
 
 
-def create_month_cycle(n_months, start_month=1):
-    '''
-    Create a repeating array of months 1-12, truncated by start_month
-    Example:
-             Create an array of 24 months starting on March (3)
-             create_month_cycle(24, start_month=3)
-             array([ 3,  4,  5,  6,  7,  8,  9, 10, 11, 12,  1,  2,  3,  4,  5,
-                     6,  7, 8,  9, 10, 11, 12,  1,  2])
-
-    '''
-
-    start = start_month - 1
-    end = n_months + start_month - 1
-
-    months = [(dt.datetime(2000, 1, 1) + relativedelta(months=i)).month
-              for i in range(start, end)]
-
-    return np.array(months)
-
-
 class BaseStandardIndex(object):
     '''
+    Calculate the SPI or SPEI index. A user specified distribution is fit to the precip data.
+    The CDF of this distribution is then calculated after which the the standard normal
+    distribution is calculated which gives the index. A distribution can be fit over the
+    precipitation data either using MLE or L-moments. NCAR's SPI calculators and the SPI and
+    SPEI R packages both use L-moments to fit the distribution. There are advantages and
+    disadvantages to each technique.
+
+    This calculation can be done on any time scale. Built in temporal scales include daily,
+    weekly, and monthly; however, the user can define their own timescale.
+
+    One should put some thought into the type of distribution fit to the
+    data. Precipitation can have zero value and some distributions are only
+    defined over interval (0, inf). Python's gamma distribution is defined
+    over [0, inf). In addition SPEI which is constructed from precipitation
+    - PET or (P-PET) can take on negative values.
     '''
 
     def __init__(self):
-        self.span = None
-        self.window_type = None
-        self.params = None
-        self.dist_type = None
-        self.rw_kwargs = None
-        self.dist_kwargs = None
-        self.rw_center = None
         self.distrb = None
 
-    def set_rolling_window_params(self, span=1, window_type=None, center=True,
-                                  **kwargs):
+    @staticmethod
+    def rolling_window_sum(df: pd.DataFrame, span, window_type, center, **kwargs):
         '''
-        span -- Size of the moving window. This is the number of observations
-                used for calculating the statistic. Each window will be a fixed
-                size.
-        window_type -- includes 'boxcar', 'traing', 'blackman', etc
-        rw_center -- If true calculated value is set to center of window, if
-                     false it is the right edge of window
-        kwargs -- Additional arguments. See pandas rolling documentation.
+        This is a helper method which will find the rolling sum of precipitation data.
         '''
-
-        self.span = span
-        self.window_type = window_type
-        self.rw_center = center
-        self.rw_kwargs = kwargs
-
-    def set_distribution_params(self, dist_type='norm', **kwargs):
-        '''
-        dist_type -- Distribution type to be fit (Gamma, fisk, etc)
-        kwargs -- Addition arguments for fit and calculation of cdf and ppf.
-                  These can include loc and scale. See https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.rv_continuous.html#scipy.stats.rv_continuous
-        '''
-
-        self.dist_type = dist_type
-        self.dist_kwargs = kwargs
-
-    def rolling_window_sum(self, data, span, window_type, center, **kwargs):
-        '''
-
-        pd.rolling_window is depreciated in pandas version 0.19
-        '''
-
-        data_df = pd.DataFrame(data)
 
         window_sum = np.squeeze(data_df.rolling(
             window=span, win_type=window_type, center=center, **kwargs
         ).sum().values.T)
 
-        #weighted_sum = pd.rolling_window(
-            #data, window=span, win_type=window_type, center=True,
-            #mean=False, **kwargs
-        #)
-
         return window_sum
 
+    @staticmethod
     def rolling_window_mean(self, data, span, window_type, center, **kwargs):
         '''
+        This is a helper method which will find the rolling mean of precipitation data.
         '''
 
         data_df = pd.DataFrame(data)
@@ -102,127 +58,137 @@ class BaseStandardIndex(object):
             center=center, **kwargs
         ).mean().values.T)
 
-        #weighted_mean = pd.rolling_window(
-            #data, window=span, win_type=window_type, center=True,
-            #mean=True, **kwargs
-        #)
-
         return window_mean
 
-    def fit_distribution(self, data, dist_type, **kwargs):
+    @staticmethod
+    def check_duplicate_dates(df, date_col):
+        '''
+        Method to check duplicate dates in dataframe. If duplicates are found, the row corresponding
+        to the first date found is used.
+        '''
+        if df.duplicated(subset=date_col).any():
+            print("Found duplicate dates in dataframe. Removing duplicates and using first date found")
+            df = df.drop_duplicates(subset=date_col)
+
+        return df
+
+    def fit_distribution(self, data: np.array, dist_type: str, fit_type: str='lmom', **kwargs):
         '''
         Fit given distribution to historical precipitation data.
-        The fit is accomplished using MLE or Maximum Likelihood Estimation.
-        One should put some thought into the type of distribution fit to the
-        data. Precipitation can have zero value and some distributions are only
-        defined over interval (0, inf). Python's gamma distribution is defined
-        over [0, inf). In addition SPEI which is constructed from precipitation
-        - PET or (P-PET) can take on negative values!!
+        The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
+        '''
+        if fit_type == 'lmom':
+            # Get distribution type
+            try:
+                self.distrb = getattr(distr, dist_type)
+            except AttributeError:
+                print("{} is not a valid distribution type".format(dist_type))
+
+            # Fit distribution
+            params = self.distrb.lmom_fit(data, **kwargs)
+
+        elif fit_type == 'mle':
+            # Get distribution type
+            try:
+                self.distrb = getattr(scs, dist_type)
+            except AttributeError:
+                print("{} is not a valid distribution type".format(dist_type))
+
+            # Fit distribution
+            params = self.distrb.fit(data, **kwargs)
+        else:
+            raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+
+        return params
+
+    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
+                  freq_col: str=None, fit_type: str='lmom', dist_type: str='gam', **dist_kwargs):
+        '''
+        Calculate the index.
 
         Check https://docs.scipy.org/doc/scipy/reference/stats.html for
         distribution types
 
-        dist_type -- distribution type to fit
-        data      -- Historical data to fit
+        Parameters
+        ----------
+        df: pd.Dataframe
+            Pandas dataframe with precipitation data as columns. Each column is treated as a seperate
+            set of observations and distributions are fit for individual columns. A date column should
+            also be given in the dataframe.
+
+        date_col: str
+            The column name for the date column. Date specification should follow the strftime format.
+
+        precip_cols: list
+            List of columns with precipitation data. Each column is treated as a separate set of
+            observations.
+
+        freq: str ["M", "W", "D"]
+            The temporal frequency to calculate the index on. The day of year ("D") or week of year
+            ("W") or month of year ("M") is derived from the date_col. If the user desires a
+
+
         kwargs    -- scale and location parameters. See documentation on
                      scipy.stats.rv_continuous.fit
 
-        Returns: shape, location, and scale (tuple of floats)
+        Returns
+        -------
+        df: pd.Dataframe
+            Pandas dataframe with the calculated indicies for each precipitation column appended
+            to the original dataframe.
         '''
 
-        # Get distribution type
-        try:
-            self.distrb = getattr(distr, dist_type)
-        except AttributeError:
-            print("{} is not a valid distribution type".format(dist_type))
+        # Check for duplicate dates
+        df = self.check_duplicate_dates(df, date_col)
 
-        # Fit distribution
-        params = self.distrb.lmom_fit(data, **kwargs)
+        self._df_copy = df[[date_col] + precip_cols]
+        self._df_copy[date_col] = pd.to_datetime(self._df_copy[date_col])
 
-        return params
-
-    def data_generator(self, read_func, file_list, *args):
-        '''
-        Generator to read data. Use the Generator function if you have a
-        significant amount of data that can not be read into memory at once.
-
-        read_func  -- user generated function to read data
-        file_list  -- list of filenames to read with read_func
-        *args      -- any arguments necessary for user defined read function
-        '''
-
-        for fname in file_list:
-            yield read_func(fname, *args)
-
-    def calculate(self, data, starting_month=1):
-        '''
-        First dimension of data should be time (months)
-        '''
-
-        # Check if distribution has been fit on historical data
-        if self.dist_type is None:
-            print ("You must fit a distribution first")
-            return False
-
-        if isinstance(data, types.GeneratorType):
-            pass
-
+        if freq_col:
+            self.freq_col = freq_col
         else:
-            spi = self.calculate_over_full_series(data, starting_month)
+            self.freq_col = 'freq'
 
-        return spi
+            if freq == "D":
+                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.dayofyear
+            elif freq == "W":
+                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.week
+            elif freq == "M":
+                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.month
+            else:
+                raise AttributeError(f"{freq} is not a recognized frequency. Options are 'M', 'W', or 'D'")
 
-    def calculate_over_full_series(self, data, starting_month):
-
-        # Number of months in data
-        n_months = np.shape(data)[0]
-
-        # Create month list
-        mnth_list = create_month_cycle(n_months, start_month=starting_month)
-
-        # Pre-allocate SPI
-        spi = np.zeros(np.shape(data))*np.nan
-
-        # Single date series
-        if data.ndim == 1:
-            data = data.reshape(len(data), 1)
-            spi = spi.reshape(len(spi), 1)
-
-        # Loop over other series (non-time)
-        for i in range(np.shape(data)[1]):
-            data_one_series = np.copy(data[:, i])
-
-            # Apply rolling window
-            if self.window_type:
-                data_one_series = self.rolling_window_mean(
-                    data_one_series, self.span, self.window_type,
-                    self.rw_center, **self.rw_kwargs
-                )
-
-            # Loop over months
-            for j in range(1, 13):
-                mnth_inds = np.where(mnth_list == j)[0]
-
-                if len(mnth_inds) == 0:
-                    continue
-
-                data_month = data_one_series[mnth_inds]
-
-                # Find all nans in data and remove for fitting distribution
-                nan_inds = np.where(np.isnan(data_month))[0]
-                data_month = data_month[~np.isnan(data_month)]
-                data_month_sorted = np.sort(data_month)[::-1]
-                mnth_inds = np.delete(mnth_inds, nan_inds)
+        freq_range = self._df_copy[self.freq_col].unique().tolist()
+        # Loop over months
+        dfs = []
+        for p in precip_cols:
+            dfs_p = pd.DataFrame()
+            for j in freq_range:
+                precip_all = self._df_copy.loc[self._df_copy[self.freq_col]==j]
+                precip_single_df = precip_all.dropna()
+                precip_single = precip_single_df[p].values
+                precip_sorted = np.sort(precip_single)[::-1]
 
                 # Fit distribution for particular series and month
                 params = self.fit_distribution(
-                    data_month_sorted, self.dist_type, **self.dist_kwargs
+                    precip_sorted, dist_type, fit_type, **dist_kwargs
                 )
 
                 # Calculate SPI/SPEI
-                spi[mnth_inds, i] = self.cdf_to_ppf(data_month, params)
+                spi = self.cdf_to_ppf(precip_single, params)
+                idx_col = f"{p}_calculated_index"
+                precip_single_df[idx_col] = spi
+                precip_single_df = precip_single_df[[date_col, idx_col]]
+                dfs_p = pd.concat([dfs_p, precip_single_df])
+                dfs_p = dfs_p.sort_values(date_col)
+            dfs.append(dfs_p)
 
-        return spi
+        df_all = reduce(
+            lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, self._df_copy
+        )
+        df_all = df_all.drop(columns=self.freq_col)
+
+        return df_all
 
     def cdf_to_ppf(self, data, params):
         '''
