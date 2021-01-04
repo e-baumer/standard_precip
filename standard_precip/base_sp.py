@@ -31,6 +31,7 @@ class BaseStandardIndex(object):
 
     def __init__(self):
         self.distrb = None
+        self.non_zero_distr = ['gam', 'pe3']
 
     @staticmethod
     def rolling_window_sum(df: pd.DataFrame, span: int, window_type, center, **kwargs):
@@ -156,10 +157,18 @@ class BaseStandardIndex(object):
         '''
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
+
+        For distributions that use the Gamma Function (Gamma and Pearson 3)
         '''
 
         # Get distribution type
         self.distrb = getattr(distr, dist_type)
+
+        # Determine zeros if distribution can not handle x = 0
+        p_zero = None
+        if dist_type in self.non_zero_distr:
+            p_zero = data[data == 0].shape[0] / data.shape[0]
+            data = data[data != 0]
 
         # Fit distribution
         if fit_type == 'lmom':
@@ -171,7 +180,7 @@ class BaseStandardIndex(object):
         else:
             raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
-        return params
+        return params, p_zero
 
     def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
                   freq_col: str=None, fit_type: str='lmom', dist_type: str='gam', **dist_kwargs):
@@ -245,6 +254,9 @@ class BaseStandardIndex(object):
         if isinstance(precip_cols, str):
             precip_cols = [precip_cols]
 
+        # for p_col in precip_cols:
+            # df.loc[df[p_col] == 0.0, p_col] = 0.001
+
         self._df_copy = df[[date_col] + precip_cols]
         self._df_copy[date_col] = pd.to_datetime(self._df_copy[date_col])
 
@@ -274,12 +286,12 @@ class BaseStandardIndex(object):
                 precip_sorted = np.sort(precip_single)[::-1]
 
                 # Fit distribution for particular series and month
-                params = self.fit_distribution(
+                params, p_zero = self.fit_distribution(
                     precip_sorted, dist_type, fit_type, **dist_kwargs
                 )
 
                 # Calculate SPI/SPEI
-                spi = self.cdf_to_ppf(precip_single, params)
+                spi = self.cdf_to_ppf(precip_single, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
                 precip_single_df = precip_single_df[[date_col, idx_col]]
@@ -294,7 +306,7 @@ class BaseStandardIndex(object):
 
         return df_all
 
-    def cdf_to_ppf(self, data, params):
+    def cdf_to_ppf(self, data, params, p_zero):
         '''
         Take the specific distributions fitted parameters and calculate the
         cdf. Apply the inverse normal distribution to the cdf to get the SPI
@@ -304,7 +316,10 @@ class BaseStandardIndex(object):
         '''
 
         # Calculate the CDF of observed precipitation on a given time scale
-        cdf = self.distrb.cdf(data, **params)
+        if p_zero:
+            cdf = p_zero + (1 - p_zero) * self.distrb.cdf(data, **params)
+        else:
+            cdf = self.distrb.cdf(data, **params)
 
         # Apply inverse normal distribution
         norm_ppf = scs.norm.ppf(cdf)
