@@ -1,4 +1,3 @@
-import types
 import scipy
 import numpy as np
 import pandas as pd
@@ -34,11 +33,10 @@ class BaseStandardIndex(object):
         self.distrb = None
 
     @staticmethod
-    def rolling_window_sum(df: pd.DataFrame, span, window_type, center, **kwargs):
+    def rolling_window_sum(df: pd.DataFrame, span: int, window_type, center, **kwargs):
         '''
         This is a helper method which will find the rolling sum of precipitation data.
         '''
-
         window_sum = np.squeeze(data_df.rolling(
             window=span, win_type=window_type, center=center, **kwargs
         ).sum().values.T)
@@ -50,7 +48,6 @@ class BaseStandardIndex(object):
         '''
         This is a helper method which will find the rolling mean of precipitation data.
         '''
-
         data_df = pd.DataFrame(data)
 
         window_mean = np.squeeze(data_df.rolling(
@@ -72,30 +69,105 @@ class BaseStandardIndex(object):
 
         return df
 
+    @staticmethod
+    def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
+                              bins: int=10, save_file: str=None):
+        '''
+        Method to find the best distribution for observational data. Calculates the Sum of the
+        Squares error between fitted distribution and pdf.
+        Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
+
+        Parameters
+        ----------
+        data: np.array size: [Number Observations, ]
+            A numpy array of size [Number Observations, ] with the precipiation data.
+
+        dist_type: list
+            The distribution type to fit using either L-moments or MLE
+                'gam' - Gamma
+                'exp' - Exponential
+                'gev' - Generalised Extreme Value
+                'gpa' - Generalised Pareto
+                'gum' - Gumbel
+                'nor' - Normal
+                'pe3' - Pearson III
+                'wei' - Weibull
+
+            The distribution type to fit using ONLY MLE
+                'glo' - Generalised Logistic
+                'gno' - Generalised Normal
+                'kap' - Kappa
+
+            The distribution type to fit using ONLY L-moments
+                'wak' - Wakeby
+
+
+        fit_type: str ("lmom" or "mle")
+            Specify the type of fit to use for fitting distribution to the precipitation data. Either
+            L-moments (lmom) or Maximum Likelihood Estimation (mle). Note use L-moments when comparing
+            to NCAR's NCL code and R's packages to calculate SPI and SPEI.
+
+        bins: int
+            Number of bins to bin precipitation data
+
+        save_file: str
+            File path and name to save figure of precipitation data and fitted distributions.
+
+        Returns
+        -------
+        sse: dict (key - distribution, value - sum of square error)
+            The sum of the squares error between fitted distribution and pdf.
+        '''
+        y, x = np.histogram(data, bins=bins, normed=True)
+        x = (x + np.roll(x, -1))[:-1] / 2.0
+
+        sse = {}
+        fig, ax = plt.subplots()
+        ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
+
+        for i, dist_name in enumerate(dist_list):
+            distrb = getattr(distr, dist_type)
+
+            if fit_type == 'lmom':
+                params = distrb.lmom_fit(data, **kwargs)
+
+            elif fit_type == 'mle':
+                params = distrb.fit(data, **kwargs)
+
+            else:
+                raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+
+            pdf = dist.pdf(x, **params)
+            sse[dist_name] = np.sum((y - pdf)**2)
+            ax.plot(x, pdf, label=dist_name)
+
+        ax.legend()
+        ax.grid(True)
+
+        if save_file:
+            plt.savefig(save_file, dpi=400)
+        else:
+            plt.show()
+
+        sse = sorted(sse.items(), key=lambda x: x[1], reverse=False)
+        return sse
+
     def fit_distribution(self, data: np.array, dist_type: str, fit_type: str='lmom', **kwargs):
         '''
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
         '''
-        if fit_type == 'lmom':
-            # Get distribution type
-            try:
-                self.distrb = getattr(distr, dist_type)
-            except AttributeError:
-                print("{} is not a valid distribution type".format(dist_type))
 
-            # Fit distribution
+        # Get distribution type
+        self.distrb = getattr(distr, dist_type)
+
+        # Fit distribution
+        if fit_type == 'lmom':
             params = self.distrb.lmom_fit(data, **kwargs)
 
         elif fit_type == 'mle':
-            # Get distribution type
-            try:
-                self.distrb = getattr(scs, dist_type)
-            except AttributeError:
-                print("{} is not a valid distribution type".format(dist_type))
-
-            # Fit distribution
             params = self.distrb.fit(data, **kwargs)
+
         else:
             raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
@@ -125,11 +197,41 @@ class BaseStandardIndex(object):
 
         freq: str ["M", "W", "D"]
             The temporal frequency to calculate the index on. The day of year ("D") or week of year
-            ("W") or month of year ("M") is derived from the date_col. If the user desires a
+            ("W") or month of year ("M") is derived from the date_col. If the user desires a custome
+            frequency such as 3-month, 6-month, they can pass the column name for the custome freqency
+            (freq_col)
 
+        freq_col: str (column type: int)
+            Name of the column that specifies a custome frequency. This overrides the freq parameter.
+            The freq_col should group individual observations (rows) according to the users custome
+            frequency. The grouping is specified using integers.
 
-        kwargs    -- scale and location parameters. See documentation on
-                     scipy.stats.rv_continuous.fit
+        fit_type: str ("lmom" or "mle")
+            Specify the type of fit to use for fitting distribution to the precipitation data. Either
+            L-moments (lmom) or Maximum Likelihood Estimation (mle). Note use L-moments when comparing
+            to NCAR's NCL code and R's packages to calculate SPI and SPEI.
+
+        dist_type: str
+            The distribution type to fit using either L-moments or MLE
+                'gam' - Gamma
+                'exp' - Exponential
+                'gev' - Generalised Extreme Value
+                'gpa' - Generalised Pareto
+                'gum' - Gumbel
+                'nor' - Normal
+                'pe3' - Pearson III
+                'wei' - Weibull
+
+            The distribution type to fit using ONLY MLE
+                'glo' - Generalised Logistic
+                'gno' - Generalised Normal
+                'kap' - Kappa
+
+            The distribution type to fit using ONLY L-moments
+                'wak' - Wakeby
+
+        dist_kwargs:
+            scale and location parameters. See documentation on scipy.stats.rv_continuous.fit
 
         Returns
         -------
@@ -140,6 +242,8 @@ class BaseStandardIndex(object):
 
         # Check for duplicate dates
         df = self.check_duplicate_dates(df, date_col)
+        if isinstance(precip_cols, str):
+            precip_cols = [precip_cols]
 
         self._df_copy = df[[date_col] + precip_cols]
         self._df_copy[date_col] = pd.to_datetime(self._df_copy[date_col])
@@ -203,42 +307,6 @@ class BaseStandardIndex(object):
         cdf = self.distrb.cdf(data, **params)
 
         # Apply inverse normal distribution
-        norm_ppf = distr.nor.ppf(cdf)
+        norm_ppf = scs.norm.ppf(cdf)
 
         return norm_ppf
-
-    def best_fit_distribution(self, data, dist_list, bins=10, save_file=None):
-        '''
-        Calculates the Sum of the Squares error between fitted distribution and
-        pdf.
-        Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
-        '''
-
-        y, x = np.histogram(data, bins=bins, normed=True)
-        x = (x + np.roll(x, -1))[:-1] / 2.0
-
-        sse = {}
-
-        fig, ax = plt.subplots()
-        ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
-
-        for i, dist_name in enumerate(dist_list):
-            dist = getattr(distr, dist_name)
-
-            params = dist.lmom_fit(data)
-
-            pdf = dist.pdf(x, **params)
-
-            sse[dist_name] = np.sum((y - pdf)**2)
-
-            ax.plot(x, pdf, label=dist_name)
-
-        ax.legend()
-        ax.grid(True)
-
-        if save_file:
-            plt.savefig(save_file, dpi=400)
-        else:
-            plt.show()
-
-        return sse
