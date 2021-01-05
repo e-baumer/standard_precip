@@ -1,16 +1,14 @@
-import scipy
+from functools import reduce
+
 import numpy as np
 import pandas as pd
-import datetime as dt
 import scipy.stats as scs
-from functools import reduce
 import matplotlib.pyplot as plt
-from dateutil.relativedelta import relativedelta
 
 from .lmoments import distr
 
 
-class BaseStandardIndex(object):
+class BaseStandardIndex():
     '''
     Calculate the SPI or SPEI index. A user specified distribution is fit to the precip data.
     The CDF of this distribution is then calculated after which the the standard normal
@@ -32,31 +30,24 @@ class BaseStandardIndex(object):
     def __init__(self):
         self.distrb = None
         self.non_zero_distr = ['gam', 'pe3']
+        self._df_copy = None
+        self.freq_col = None
 
     @staticmethod
-    def rolling_window_sum(df: pd.DataFrame, span: int, window_type, center, **kwargs):
+    def rolling_window_sum(df: pd.DataFrame, precip_cols: list, span: int=1, window_type: str=None,
+                           center: bool=False, **kwargs):
         '''
         This is a helper method which will find the rolling sum of precipitation data.
         '''
-        window_sum = np.squeeze(data_df.rolling(
-            window=span, win_type=window_type, center=center, **kwargs
-        ).sum().values.T)
+        precip_cols_new = []
+        for p in precip_cols:
+            new_col_name = p+f"_scale_{span}"
+            df[new_col_name] = df[p].rolling(
+                window=span, win_type=window_type, center=center, **kwargs
+            ).sum()
+            precip_cols_new.append(new_col_name)
 
-        return window_sum
-
-    @staticmethod
-    def rolling_window_mean(self, data, span, window_type, center, **kwargs):
-        '''
-        This is a helper method which will find the rolling mean of precipitation data.
-        '''
-        data_df = pd.DataFrame(data)
-
-        window_mean = np.squeeze(data_df.rolling(
-            window=span, win_type=window_type, min_periods=span,
-            center=center, **kwargs
-        ).mean().values.T)
-
-        return window_mean
+        return df, precip_cols_new
 
     @staticmethod
     def check_duplicate_dates(df, date_col):
@@ -70,95 +61,15 @@ class BaseStandardIndex(object):
 
         return df
 
-    @staticmethod
-    def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
-                              bins: int=10, save_file: str=None):
-        '''
-        Method to find the best distribution for observational data. Calculates the Sum of the
-        Squares error between fitted distribution and pdf.
-        Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
-
-        Parameters
-        ----------
-        data: np.array size: [Number Observations, ]
-            A numpy array of size [Number Observations, ] with the precipiation data.
-
-        dist_type: list
-            The distribution type to fit using either L-moments or MLE
-                'gam' - Gamma
-                'exp' - Exponential
-                'gev' - Generalised Extreme Value
-                'gpa' - Generalised Pareto
-                'gum' - Gumbel
-                'nor' - Normal
-                'pe3' - Pearson III
-                'wei' - Weibull
-
-            The distribution type to fit using ONLY MLE
-                'glo' - Generalised Logistic
-                'gno' - Generalised Normal
-                'kap' - Kappa
-
-            The distribution type to fit using ONLY L-moments
-                'wak' - Wakeby
-
-
-        fit_type: str ("lmom" or "mle")
-            Specify the type of fit to use for fitting distribution to the precipitation data. Either
-            L-moments (lmom) or Maximum Likelihood Estimation (mle). Note use L-moments when comparing
-            to NCAR's NCL code and R's packages to calculate SPI and SPEI.
-
-        bins: int
-            Number of bins to bin precipitation data
-
-        save_file: str
-            File path and name to save figure of precipitation data and fitted distributions.
-
-        Returns
-        -------
-        sse: dict (key - distribution, value - sum of square error)
-            The sum of the squares error between fitted distribution and pdf.
-        '''
-        y, x = np.histogram(data, bins=bins, normed=True)
-        x = (x + np.roll(x, -1))[:-1] / 2.0
-
-        sse = {}
-        fig, ax = plt.subplots()
-        ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
-
-        for i, dist_name in enumerate(dist_list):
-            distrb = getattr(distr, dist_type)
-
-            if fit_type == 'lmom':
-                params = distrb.lmom_fit(data, **kwargs)
-
-            elif fit_type == 'mle':
-                params = distrb.fit(data, **kwargs)
-
-            else:
-                raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
-
-            pdf = dist.pdf(x, **params)
-            sse[dist_name] = np.sum((y - pdf)**2)
-            ax.plot(x, pdf, label=dist_name)
-
-        ax.legend()
-        ax.grid(True)
-
-        if save_file:
-            plt.savefig(save_file, dpi=400)
-        else:
-            plt.show()
-
-        sse = sorted(sse.items(), key=lambda x: x[1], reverse=False)
-        return sse
-
     def fit_distribution(self, data: np.array, dist_type: str, fit_type: str='lmom', **kwargs):
         '''
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
 
-        For distributions that use the Gamma Function (Gamma and Pearson 3)
+        For distributions that use the Gamma Function (Gamma and Pearson 3) remove observations
+        that have 0 precipitation values and fit using non-zero observations. Also find probability
+        of zero observation (estimated by number of zero obs / total obs). This is for latter use
+        in calculating the CDF using (Thom, 1966. Some Methods of Climatological Analysis)
         '''
 
         # Get distribution type
@@ -183,7 +94,8 @@ class BaseStandardIndex(object):
         return params, p_zero
 
     def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
-                  freq_col: str=None, fit_type: str='lmom', dist_type: str='gam', **dist_kwargs):
+                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam',
+                  **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
 
@@ -214,6 +126,10 @@ class BaseStandardIndex(object):
             Name of the column that specifies a custome frequency. This overrides the freq parameter.
             The freq_col should group individual observations (rows) according to the users custome
             frequency. The grouping is specified using integers.
+
+        scale: int (default=1)
+            Integer to specify the number of time periods over which the standardized precipitation
+            index is to be calculated. If freq="M" then this is the number of months.
 
         fit_type: str ("lmom" or "mle")
             Specify the type of fit to use for fitting distribution to the precipitation data. Either
@@ -254,10 +170,10 @@ class BaseStandardIndex(object):
         if isinstance(precip_cols, str):
             precip_cols = [precip_cols]
 
-        # for p_col in precip_cols:
-            # df.loc[df[p_col] == 0.0, p_col] = 0.001
+        if scale > 1:
+            df, precip_cols = self.rolling_window_sum(df, precip_cols, scale)
 
-        self._df_copy = df[[date_col] + precip_cols]
+        self._df_copy = df[[date_col] + precip_cols].copy()
         self._df_copy[date_col] = pd.to_datetime(self._df_copy[date_col])
 
         if freq_col:
@@ -281,7 +197,7 @@ class BaseStandardIndex(object):
             dfs_p = pd.DataFrame()
             for j in freq_range:
                 precip_all = self._df_copy.loc[self._df_copy[self.freq_col]==j]
-                precip_single_df = precip_all.dropna()
+                precip_single_df = precip_all.dropna().copy()
                 precip_single = precip_single_df[p].values
                 precip_sorted = np.sort(precip_single)[::-1]
 

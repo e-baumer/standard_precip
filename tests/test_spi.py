@@ -162,3 +162,12 @@ def test_wak_lmoments():
         df_rainfall, 'date', 'TotalPrecipitation', freq="M", fit_type="lmom", dist_type="wak"
     )
     assert np.round(df_spi['TotalPrecipitation_calculated_index'].iloc[3], 4) == np.round(-0.204953, 4)
+
+def test_3month_spi():
+    new_spi = spi.SPI()
+    df_rainfall = pd.read_csv('data/wichita_rain.csv')
+    df_spi = new_spi.calculate(
+        df_rainfall, 'date', 'precip', freq="M", fit_type="lmom", scale=3,
+        dist_type="gam"
+    )
+    assert np.round(df_spi['precip_scale_3_calculated_index'].iloc[2], 4) == np.round(0.856479, 4)
