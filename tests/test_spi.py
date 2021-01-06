@@ -171,3 +171,12 @@ def test_3month_spi():
         dist_type="gam"
     )
     assert np.round(df_spi['precip_scale_3_calculated_index'].iloc[2], 4) == np.round(0.856479, 4)
+
+def test_daily_nan():
+    new_spi = spi.SPI()
+    df_rainfall = pd.read_csv('data/daily_data.csv')
+    df_spi = new_spi.calculate(
+        df_rainfall, 'date', 'precip', freq="D", fit_type="lmom", scale=1,
+        dist_type="gam"
+    )
+    assert np.isnan(df_spi['precip_calculated_index'].iloc[0])

@@ -5,7 +5,7 @@ import pandas as pd
 import scipy.stats as scs
 import matplotlib.pyplot as plt
 
-from .lmoments import distr
+from standard_precip.lmoments import distr
 
 
 class BaseStandardIndex():
@@ -81,17 +81,48 @@ class BaseStandardIndex():
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
 
-        # Fit distribution
-        if fit_type == 'lmom':
-            params = self.distrb.lmom_fit(data, **kwargs)
-
-        elif fit_type == 'mle':
-            params = self.distrb.fit(data, **kwargs)
+        if (data.shape[0]<3) or (p_zero==1):
+            params = None
 
         else:
-            raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+            # Fit distribution
+            if fit_type == 'lmom':
+                params = self.distrb.lmom_fit(data, **kwargs)
+
+            elif fit_type == 'mle':
+                params = self.distrb.fit(data, **kwargs)
+
+            else:
+                raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
         return params, p_zero
+
+    def cdf_to_ppf(self, data, params, p_zero):
+        '''
+        Take the specific distributions fitted parameters and calculate the
+        cdf. Apply the inverse normal distribution to the cdf to get the SPI
+        SPEI. This process is best described in Lloyd-Hughes and Saunders, 2002
+        which is included in the documentation.
+
+        '''
+
+        # Calculate the CDF of observed precipitation on a given time scale
+        if not (p_zero is None):
+            if params:
+                cdf = p_zero + (1 - p_zero) * self.distrb.cdf(data, **params)
+            elif (p_zero < 1):
+                cdf = np.empty(data.shape)
+                cdf.fill(np.nan)
+            else:
+                cdf = np.array([p_zero])
+        else:
+            cdf = self.distrb.cdf(data, **params)
+
+        # Apply inverse normal distribution
+        norm_ppf = scs.norm.ppf(cdf)
+        norm_ppf[np.isinf(norm_ppf)] = np.nan
+
+        return norm_ppf
 
     def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
                   scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam',
@@ -221,23 +252,3 @@ class BaseStandardIndex():
         df_all = df_all.drop(columns=self.freq_col)
 
         return df_all
-
-    def cdf_to_ppf(self, data, params, p_zero):
-        '''
-        Take the specific distributions fitted parameters and calculate the
-        cdf. Apply the inverse normal distribution to the cdf to get the SPI
-        SPEI. This process is best described in Lloyd-Hughes and Saunders, 2002
-        which is included in the documentation.
-
-        '''
-
-        # Calculate the CDF of observed precipitation on a given time scale
-        if p_zero:
-            cdf = p_zero + (1 - p_zero) * self.distrb.cdf(data, **params)
-        else:
-            cdf = self.distrb.cdf(data, **params)
-
-        # Apply inverse normal distribution
-        norm_ppf = scs.norm.ppf(cdf)
-
-        return norm_ppf

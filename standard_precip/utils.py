@@ -1,29 +1,28 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
-def plot_index(time, data, save_file=None, index_type='SPI'):
+def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str=None,
+               index_type: str='SPI', bin_width: int=22):
 
-    b_width = 22
-    pos_inds = np.where(data >= 0.)[0]
-    neg_inds = np.where(data < 0.)[0]
-
-    data = np.squeeze(data)
+    pos_index = df.loc[df[precip_col] >= 0]
+    neg_index = df.loc[df[precip_col] < 0]
 
     fig, ax = plt.subplots()
-    ax.bar(time[pos_inds], data[pos_inds], width=b_width, align='center', color='b')
-    ax.bar(time[neg_inds], data[neg_inds], width=b_width, align='center', color='r')
+    ax.bar(pos_index[date_col], pos_index[precip_col], width=bin_width, align='center', color='b')
+    ax.bar(neg_index[date_col], neg_index[precip_col], width=bin_width, align='center', color='r')
     ax.grid(True)
     ax.set_xlabel("Date")
     ax.set_ylabel(index_type)
 
     if save_file:
         plt.savefig(save_file, dpi=400)
-    else:
-        plt.show()
 
-def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
-                            bins: int=10, save_file: str=None, **kwargs):
+    return fig
+
+def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom', bins: int=10,
+                          save_file: str=None, **kwargs):
     '''
     Method to find the best distribution for observational data. Calculates the Sum of the
     Squares error between fitted distribution and pdf.
