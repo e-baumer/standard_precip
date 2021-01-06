@@ -174,7 +174,7 @@ def test_3month_spi():
 
 def test_daily_nan():
     new_spi = spi.SPI()
-    df_rainfall = pd.read_csv('data/daily_data.csv')
+    df_rainfall = pd.read_csv('data/daily_data_test.csv')
     df_spi = new_spi.calculate(
         df_rainfall, 'date', 'precip', freq="D", fit_type="lmom", scale=1,
         dist_type="gam"

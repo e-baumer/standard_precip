@@ -81,7 +81,7 @@ class BaseStandardIndex():
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
 
-        if (data.shape[0]<3) or (p_zero==1):
+        if (data.shape[0]<4) or (p_zero==1):
             params = None
 
         else:
@@ -110,11 +110,9 @@ class BaseStandardIndex():
         if not (p_zero is None):
             if params:
                 cdf = p_zero + (1 - p_zero) * self.distrb.cdf(data, **params)
-            elif (p_zero < 1):
+            else:
                 cdf = np.empty(data.shape)
                 cdf.fill(np.nan)
-            else:
-                cdf = np.array([p_zero])
         else:
             cdf = self.distrb.cdf(data, **params)
 

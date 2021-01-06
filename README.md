@@ -1,10 +1,10 @@
 # [Standard Precipitation (Evapotranspiration) Index](http://sac.csic.es/spei/home.html)
 [![Build Status](https://travis-ci.org/e-baumer/standard_precip.svg?branch=master)](https://travis-ci.org/e-baumer/standard_precip)
+[![GitHub license](https://img.shields.io/github/license/e-baumer/standard_precip)](https://github.com/e-baumer/standard_precip/blob/master/LICENSE)
 
 ## Overview
 This is a Python implementation for calculating the Standard Precipitation Index
-(SPI) and the Standard Precipipation Evapotranspiration Index (SPEI). These are
-two key indicies in identifying droughts. See [NCAR's Climate Data Guide]
+(SPI). This is one of the key indicies in identifying droughts. See [NCAR's Climate Data Guide]
 (https://climatedataguide.ucar.edu/climate-data/standardized-precipitation-evapotranspiration-index-spei) for a usefull discussion 
 of the relative merits of SPI vs SPEI. 
 
@@ -15,18 +15,40 @@ describes the algorithms is:
 	Lloyd‐Hughes, Benjamin, and Mark A. Saunders. "A drought climatology for Europe." International journal of climatology 22.13 (2002): 1571-1592.
 This paper is included in the docs folder.
 
-The underlying algorithm to calculate SPI and SPEI are the same; however, SPI is
-calculated using precipitation data only, whereas SPEI is calculated using precipiation
-minus potential evapotranspiration (PET).
-
 There is some consensus in the literature as to which distribution to fit historical data. 
 For precipitation data only (SPI) it is suggested to use a Gamma distribution. This 
-is the default distribution in the SPI function. For SPEI, some have suggested using
-a log-logistic distribution. The default distribution for the SPEI function is
-the Fisk or log-logistic distribution. However, the user can select their own 
+is the default distribution in the SPI function.  However, the user can select their own 
 distribution (see Notes).
 
+The current implementation allows for the user to fit precipitation data with using either L-moments or Maximum
+Likelihood Estimation (MLE). It also allows for the fitting of daily, weekly, monthly or any custom time frame
+of SPI data. 
+
 Currently on compatible with Python3.
+
+## Available Distributions
+The following is a table of distributions used to fit the precipitation data. The table indicates whether the
+distribution is available for L-moments or MLE.
+
+Distribution | L-Moments | MLE
+------------------------------
+Gamma |:heavy_check_mark: | :heavy_check_mark:
+Exponential |:heavy_check_mark: | :heavy_check_mark:
+Generalized Extreme Value |:heavy_check_mark: | :heavy_check_mark:
+Generalized Pareto |:heavy_check_mark: | :heavy_check_mark:
+Gumbel |:heavy_check_mark: | :heavy_check_mark:
+Normal |:heavy_check_mark: | :heavy_check_mark:
+Pearson III |:heavy_check_mark: | :heavy_check_mark:
+Weibull |:heavy_check_mark: | :heavy_check_mark:
+Generalized Logistic | - | :heavy_check_mark:
+Generalized Normal | - | :heavy_check_mark:
+Wakeby | :heavy_check_mark: | -
+
+## Installation
+```
+pip install standard-precip
+```
+
 
 ## Example Use
 
@@ -92,7 +114,6 @@ plot_index(date_list, data)
 
 ## TO DO
 1. Implement calculations of PET
-2. Improve plotting
 3. Finish generator to process large datasets
 4. Add metric for fit of distribution to historical data
 
@@ -101,9 +122,6 @@ plot_index(date_list, data)
 that they wish to fit historical data to, one should be aware of the support of 
 each particular distribution. Precipitation data can have zero values and P-PEI 
 can take on negative values. This should be considered when selecting a distribution.
-2.
-
-## Build
 
 
 ## Contacts
