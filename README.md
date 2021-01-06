@@ -31,7 +31,7 @@ The following is a table of distributions used to fit the precipitation data. Th
 distribution is available for L-moments or MLE.
 
 Distribution | L-Moments | MLE
-------------------------------
+:----------- | :---------- | :--------
 Gamma |:heavy_check_mark: | :heavy_check_mark:
 Exponential |:heavy_check_mark: | :heavy_check_mark:
 Generalized Extreme Value |:heavy_check_mark: | :heavy_check_mark:
