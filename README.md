@@ -22,7 +22,7 @@ distribution (see Notes).
 
 The current implementation allows for the user to fit precipitation data with using either L-moments or Maximum
 Likelihood Estimation (MLE). It also allows for the fitting of daily, weekly, monthly or any custom time frame
-of SPI data. 
+of SPI data.
 
 Currently on compatible with Python3.
 
@@ -50,31 +50,21 @@ pip install standard-precip
 ```
 
 
-## Example Use
+## Basic Usage 
+
+For more detailed example see the example notebook.
 
 Imports
 ```
-import datetime as dt
-from dateutil.relativedelta import relativedelta
-import numpy as np
-import os
-from plot_index import plot_index
+import pandas as pd
 from standard_precip.spi import SPI
+from standard_precip.utils import plot_index
 ```
 
-A useful function for calculating a list of dates
-```
-def create_datelist(start_date, n_months):
-    
-    dates = [start_date + relativedelta(months=i) 
-              for i in range(0, n_months)]
-    
-    return np.array(dates)
-```
-
+The SPI function expects the data to be in a Pandas DataFrame
 Read example monthly precipitation data (included in data folder).
 ```
-rainfall_data = np.genfromtxt('rainfall_test.csv', delimiter=',')
+rainfall_data = pd.read_csv('monthly_data.csv')
 ```
 
 For this example we will calculate SPI, therefore initialize the SPI class
@@ -82,40 +72,47 @@ For this example we will calculate SPI, therefore initialize the SPI class
 spi = SPI()
 ```
 
-Set rolling window average parameters. In this example since window_type is None
-we don't actually implement a rolling window.
+Calculate the 1-Month SPI using Gamma function and L-moments. You must indicate the date column and the 
+precipitation column of the DataFrame. You can have a list of precipitation columns to process.
 ```
-spi.set_rolling_window_params(
-    span=1, window_type=None, center=True
+df_spi = new_spi.calculate(
+    rainfall_data, 
+    'date', 
+    'precip', 
+    freq="M", 
+    scale=1, 
+    fit_type="lmom", 
+    dist_type="gam"
 )
 ```
-Set statistical distribution fit parameters. When calling SPI class the default
-distribution is a generalized gamma distribution which is a three parameter gamma
-distribution. Here we set it to a gamma distribution (two parameters) for no reason.
-```
-spi.set_distribution_params(dist_type='gam')
-```
 
-Calculate SPI. The parameter starting_month indicates the month at which the 
-data starts.
+Calculate the 3-Month SPI using Gamma function and L-moments. You must indicate the date column and the 
+precipitation column of the DataFrame. You can have a list of precipitation columns to process.
 ```
-data = spi.calculate(rainfall_data, starting_month=1)
+df_spi = new_spi.calculate(
+    rainfall_data, 
+    'date', 
+    'precip', 
+    freq="M", 
+    scale=3, 
+    fit_type="lmom", 
+    dist_type="gam"
+)
 ```
-Create a date list for plotting.
-```
-n_dates = np.shape(data)[0]
-date_list = create_datelist(dt.date(2000,1,1), n_dates)
-```
+The freq parameter indicates the type of data you are using, daily, weekly, monthly. However, if you have a custom
+time period you are interested you can over-ride the freq parameter by using creating a column in the DataFrame for
+grouping the observations and indicating this column in the freq_col parameter. The distributions and indicies will
+be calculated using the integer grouping in the freq_col.
 
 Plot data
 ```
-plot_index(date_list, data)
+fig = plot_index(df_spi, 'date', 'precip_scale_3_calculated_index')
 ```
 
 ## TO DO
-1. Implement calculations of PET
-3. Finish generator to process large datasets
-4. Add metric for fit of distribution to historical data
+1. Implement calculations of PET for SPEI
+2. Add other drought indicators
+3. Create functionality for finding best distribution based on data
 
 ## Notes
 1. Although the user is allowed to select the distribution (from scipy stats)
