@@ -1,10 +1,10 @@
 # [Standard Precipitation (Evapotranspiration) Index](http://sac.csic.es/spei/home.html)
 [![Build Status](https://travis-ci.org/e-baumer/standard_precip.svg?branch=master)](https://travis-ci.org/e-baumer/standard_precip)
+[![GitHub license](https://img.shields.io/github/license/e-baumer/standard_precip)](https://github.com/e-baumer/standard_precip/blob/master/LICENSE)
 
 ## Overview
 This is a Python implementation for calculating the Standard Precipitation Index
-(SPI) and the Standard Precipipation Evapotranspiration Index (SPEI). These are
-two key indicies in identifying droughts. See [NCAR's Climate Data Guide]
+(SPI). This is one of the key indicies in identifying droughts. See [NCAR's Climate Data Guide]
 (https://climatedataguide.ucar.edu/climate-data/standardized-precipitation-evapotranspiration-index-spei) for a usefull discussion 
 of the relative merits of SPI vs SPEI. 
 
@@ -15,44 +15,56 @@ describes the algorithms is:
 	Lloyd‐Hughes, Benjamin, and Mark A. Saunders. "A drought climatology for Europe." International journal of climatology 22.13 (2002): 1571-1592.
 This paper is included in the docs folder.
 
-The underlying algorithm to calculate SPI and SPEI are the same; however, SPI is
-calculated using precipitation data only, whereas SPEI is calculated using precipiation
-minus potential evapotranspiration (PET).
-
 There is some consensus in the literature as to which distribution to fit historical data. 
 For precipitation data only (SPI) it is suggested to use a Gamma distribution. This 
-is the default distribution in the SPI function. For SPEI, some have suggested using
-a log-logistic distribution. The default distribution for the SPEI function is
-the Fisk or log-logistic distribution. However, the user can select their own 
+is the default distribution in the SPI function.  However, the user can select their own 
 distribution (see Notes).
+
+The current implementation allows for the user to fit precipitation data with using either L-moments or Maximum
+Likelihood Estimation (MLE). It also allows for the fitting of daily, weekly, monthly or any custom time frame
+of SPI data.
 
 Currently on compatible with Python3.
 
-## Example Use
+## Available Distributions
+The following is a table of distributions used to fit the precipitation data. The table indicates whether the
+distribution is available for L-moments or MLE.
+
+Distribution | L-Moments | MLE
+:----------- | :---------- | :--------
+Gamma |:heavy_check_mark: | :heavy_check_mark:
+Exponential |:heavy_check_mark: | :heavy_check_mark:
+Generalized Extreme Value |:heavy_check_mark: | :heavy_check_mark:
+Generalized Pareto |:heavy_check_mark: | :heavy_check_mark:
+Gumbel |:heavy_check_mark: | :heavy_check_mark:
+Normal |:heavy_check_mark: | :heavy_check_mark:
+Pearson III |:heavy_check_mark: | :heavy_check_mark:
+Weibull |:heavy_check_mark: | :heavy_check_mark:
+Generalized Logistic | - | :heavy_check_mark:
+Generalized Normal | - | :heavy_check_mark:
+Wakeby | :heavy_check_mark: | -
+
+## Installation
+```
+pip install standard-precip
+```
+
+
+## Basic Usage 
+
+For more detailed example see the example notebook.
 
 Imports
 ```
-import datetime as dt
-from dateutil.relativedelta import relativedelta
-import numpy as np
-import os
-from plot_index import plot_index
+import pandas as pd
 from standard_precip.spi import SPI
+from standard_precip.utils import plot_index
 ```
 
-A useful function for calculating a list of dates
-```
-def create_datelist(start_date, n_months):
-    
-    dates = [start_date + relativedelta(months=i) 
-              for i in range(0, n_months)]
-    
-    return np.array(dates)
-```
-
+The SPI function expects the data to be in a Pandas DataFrame
 Read example monthly precipitation data (included in data folder).
 ```
-rainfall_data = np.genfromtxt('rainfall_test.csv', delimiter=',')
+rainfall_data = pd.read_csv('monthly_data.csv')
 ```
 
 For this example we will calculate SPI, therefore initialize the SPI class
@@ -60,50 +72,53 @@ For this example we will calculate SPI, therefore initialize the SPI class
 spi = SPI()
 ```
 
-Set rolling window average parameters. In this example since window_type is None
-we don't actually implement a rolling window.
+Calculate the 1-Month SPI using Gamma function and L-moments. You must indicate the date column and the 
+precipitation column of the DataFrame. You can have a list of precipitation columns to process.
 ```
-spi.set_rolling_window_params(
-    span=1, window_type=None, center=True
+df_spi = new_spi.calculate(
+    rainfall_data, 
+    'date', 
+    'precip', 
+    freq="M", 
+    scale=1, 
+    fit_type="lmom", 
+    dist_type="gam"
 )
 ```
-Set statistical distribution fit parameters. When calling SPI class the default
-distribution is a generalized gamma distribution which is a three parameter gamma
-distribution. Here we set it to a gamma distribution (two parameters) for no reason.
-```
-spi.set_distribution_params(dist_type='gam')
-```
 
-Calculate SPI. The parameter starting_month indicates the month at which the 
-data starts.
+Calculate the 3-Month SPI using Gamma function and L-moments. You must indicate the date column and the 
+precipitation column of the DataFrame. You can have a list of precipitation columns to process.
 ```
-data = spi.calculate(rainfall_data, starting_month=1)
+df_spi = new_spi.calculate(
+    rainfall_data, 
+    'date', 
+    'precip', 
+    freq="M", 
+    scale=3, 
+    fit_type="lmom", 
+    dist_type="gam"
+)
 ```
-Create a date list for plotting.
-```
-n_dates = np.shape(data)[0]
-date_list = create_datelist(dt.date(2000,1,1), n_dates)
-```
+The freq parameter indicates the type of data you are using, daily, weekly, monthly. However, if you have a custom
+time period you are interested you can over-ride the freq parameter by using creating a column in the DataFrame for
+grouping the observations and indicating this column in the freq_col parameter. The distributions and indicies will
+be calculated using the integer grouping in the freq_col.
 
 Plot data
 ```
-plot_index(date_list, data)
+fig = plot_index(df_spi, 'date', 'precip_scale_3_calculated_index')
 ```
 
 ## TO DO
-1. Implement calculations of PET
-2. Improve plotting
-3. Finish generator to process large datasets
-4. Add metric for fit of distribution to historical data
+1. Implement calculations of PET for SPEI
+2. Add other drought indicators
+3. Create functionality for finding best distribution based on data
 
 ## Notes
 1. Although the user is allowed to select the distribution (from scipy stats)
 that they wish to fit historical data to, one should be aware of the support of 
 each particular distribution. Precipitation data can have zero values and P-PEI 
 can take on negative values. This should be considered when selecting a distribution.
-2.
-
-## Build
 
 
 ## Contacts
