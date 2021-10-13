@@ -69,12 +69,13 @@ def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
     sse: dict (key - distribution, value - sum of square error)
         The sum of the squares error between fitted distribution and pdf.
     '''
+    from standard_precip.lmoments import distr
     y, x = np.histogram(data, bins=bins, normed=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
     sse = {}
     fig, ax = plt.subplots()
-    ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
+    ax.scatter(x, y, color='b', alpha=0.5, label='data')
 
     for dist_name in dist_list:
         distrb = getattr(distr, dist_name)
