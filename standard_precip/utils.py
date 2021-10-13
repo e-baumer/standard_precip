@@ -75,7 +75,7 @@ def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
 
     sse = {}
     fig, ax = plt.subplots()
-    ax.scatter(x, y, color='b', alpha=0.5, label='data')
+    ax.scatter(x, y, color='b', alpha=1, label='data')
 
     for dist_name in dist_list:
         distrb = getattr(distr, dist_name)
