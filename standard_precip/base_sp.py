@@ -122,8 +122,8 @@ class BaseStandardIndex():
 
         return norm_ppf
 
-    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
-                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam',
+    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, startyr: int, endyr: int, freq: str="M",
+                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam', 
                   **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
@@ -144,6 +144,12 @@ class BaseStandardIndex():
         precip_cols: list
             List of columns with precipitation data. Each column is treated as a separate set of
             observations.
+
+        startyr: int
+			First year of baseline period.
+
+		endyr: int
+			Last year of baseline period.
 
         freq: str ["M", "W", "D"]
             The temporal frequency to calculate the index on. The day of year ("D") or week of year
@@ -228,7 +234,8 @@ class BaseStandardIndex():
                 precip_all = self._df_copy.loc[self._df_copy[self.freq_col]==j]
                 precip_single_df = precip_all.dropna().copy()
                 precip_single = precip_single_df[p].values
-                precip_sorted = np.sort(precip_single)[::-1]
+                precip_single_baseline = precip_single_df[p].loc[((precip_single_df[date_col].dt.year.values >=startyr) & (precip_single_df[date_col].dt.year.values <=endyr))].values
+                precip_sorted = np.sort(precip_single_baseline)[::-1] # why sorted?
 
                 # Fit distribution for particular series and month
                 params, p_zero = self.fit_distribution(
@@ -248,5 +255,6 @@ class BaseStandardIndex():
             lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, self._df_copy
         )
         df_all = df_all.drop(columns=self.freq_col)
+#        df_all['params'] = params
 
-        return df_all
+        return df_all, params
