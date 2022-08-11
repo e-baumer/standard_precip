@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as scs
 import matplotlib.pyplot as plt
+from IPython import embed
 
 from standard_precip.lmoments import distr
 
@@ -117,8 +118,18 @@ class BaseStandardIndex():
             cdf = self.distrb.cdf(data, **params)
 
         # Apply inverse normal distribution
-        norm_ppf = scs.norm.ppf(cdf)
+        norm_ppf = scs.norm.ppf(cdf) # NH: find the inverse of the CDF except for a normal distribution
         norm_ppf[np.isinf(norm_ppf)] = np.nan
+
+        #########################
+        # diagnostics
+#        __import__("IPython").embed()
+#        from matplotlib import pyplot as plt
+#        # plot the CDF
+#        plt.plot(np.sort(data),np.sort(cdf))
+#        cdf_norm = scs.norm.cdf(norm_ppf)
+#        # plot the CDF of the normalised function
+#        plt.plot(np.sort(norm_ppf),np.sort(cdf_norm))
 
         return norm_ppf
 
@@ -243,6 +254,7 @@ class BaseStandardIndex():
                 )
 
                 # Calculate SPI/SPEI
+				# TODO: p_zero needs recalculating for the whole precip time series? Currently it's calculated using the base period only.
                 spi = self.cdf_to_ppf(precip_single, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
