@@ -118,18 +118,27 @@ class BaseStandardIndex():
             cdf = self.distrb.cdf(data, **params)
 
         # Apply inverse normal distribution
-        norm_ppf = scs.norm.ppf(cdf) # NH: find the inverse of the CDF except for a normal distribution
+        norm_ppf = scs.norm.ppf(cdf) # NH: find the inverse of the CDF, except for a normal distribution
         norm_ppf[np.isinf(norm_ppf)] = np.nan
 
         #########################
         # diagnostics
+        #########################
+        # On PPF's and CDF's: https://www.itl.nist.gov/div898/handbook/eda/section3/eda362.htm
 #        __import__("IPython").embed()
+        # back calculate precip value from normalised data (i.e. from the SPI value)
+#        norm_cdf = scs.norm.cdf(norm_ppf)
+#        original_data = scs.gamma.ppf(norm_cdf,a=params['a'],loc=params['loc'],scale=params['scale'])
+
 #        from matplotlib import pyplot as plt
 #        # plot the CDF
 #        plt.plot(np.sort(data),np.sort(cdf))
 #        cdf_norm = scs.norm.cdf(norm_ppf)
 #        # plot the CDF of the normalised function
 #        plt.plot(np.sort(norm_ppf),np.sort(cdf_norm))
+        #########################
+        # end diagnostics
+        #########################
 
         return norm_ppf
 
@@ -254,7 +263,10 @@ class BaseStandardIndex():
                 )
 
                 # Calculate SPI/SPEI
-				# TODO: p_zero needs recalculating for the whole precip time series? Currently it's calculated using the base period only.
+                # NOTE: It's my understanding that p_zero does NOT need re-calculating based on the whole time series (as opposed to just 
+                # the base period above). ie. p_zero should represent the base period only, which is used to derive the parameters used in 
+                # the below CDF calcs. p_zero re-calculated using the whole time series would result in CDF's being calculated using 
+                # parameters from the baseline and a p_zero from the whole time series.
                 spi = self.cdf_to_ppf(precip_single, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
@@ -267,6 +279,5 @@ class BaseStandardIndex():
             lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, self._df_copy
         )
         df_all = df_all.drop(columns=self.freq_col)
-#        df_all['params'] = params
 
         return df_all, params
