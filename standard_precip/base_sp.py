@@ -218,6 +218,8 @@ class BaseStandardIndex():
         df: pd.Dataframe
             Pandas dataframe with the calculated indicies for each precipitation column appended
             to the original dataframe.
+		df_params: pd.DataFrame
+			Pandas dataframe with the distribution parameters for each calendar month.
         '''
 
         # Check for duplicate dates
@@ -248,6 +250,7 @@ class BaseStandardIndex():
         freq_range = self._df_copy[self.freq_col].unique().tolist()
         # Loop over months
         dfs = []
+        dictpar = dict.fromkeys(freq_range)
         for p in precip_cols:
             dfs_p = pd.DataFrame()
             for j in freq_range:
@@ -273,6 +276,7 @@ class BaseStandardIndex():
                 precip_single_df = precip_single_df[[date_col, idx_col]]
                 dfs_p = pd.concat([dfs_p, precip_single_df])
                 dfs_p = dfs_p.sort_values(date_col)
+                dictpar[j] = params
             dfs.append(dfs_p)
 
         df_all = reduce(
@@ -280,4 +284,4 @@ class BaseStandardIndex():
         )
         df_all = df_all.drop(columns=self.freq_col)
 
-        return df_all, params
+        return df_all, pd.DataFrame(dictpar).transpose()
