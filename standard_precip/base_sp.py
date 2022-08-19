@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as scs
 import matplotlib.pyplot as plt
+from IPython import embed
 
 from standard_precip.lmoments import distr
 
@@ -117,13 +118,32 @@ class BaseStandardIndex():
             cdf = self.distrb.cdf(data, **params)
 
         # Apply inverse normal distribution
-        norm_ppf = scs.norm.ppf(cdf)
+        norm_ppf = scs.norm.ppf(cdf) # NH: find the inverse of the CDF, except for a normal distribution
         norm_ppf[np.isinf(norm_ppf)] = np.nan
+
+        #########################
+        # diagnostics
+        #########################
+        # On PPF's and CDF's: https://www.itl.nist.gov/div898/handbook/eda/section3/eda362.htm
+#        __import__("IPython").embed()
+        # back calculate precip value from normalised data (i.e. from the SPI value)
+#        norm_cdf = scs.norm.cdf(norm_ppf)
+#        original_data = scs.gamma.ppf(norm_cdf,a=params['a'],loc=params['loc'],scale=params['scale'])
+
+#        from matplotlib import pyplot as plt
+#        # plot the CDF
+#        plt.plot(np.sort(data),np.sort(cdf))
+#        cdf_norm = scs.norm.cdf(norm_ppf)
+#        # plot the CDF of the normalised function
+#        plt.plot(np.sort(norm_ppf),np.sort(cdf_norm))
+        #########################
+        # end diagnostics
+        #########################
 
         return norm_ppf
 
-    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
-                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam',
+    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, startyr: int, endyr: int, freq: str="M",
+                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam', 
                   **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
@@ -144,6 +164,12 @@ class BaseStandardIndex():
         precip_cols: list
             List of columns with precipitation data. Each column is treated as a separate set of
             observations.
+
+        startyr: int
+			First year of baseline period.
+
+		endyr: int
+			Last year of baseline period.
 
         freq: str ["M", "W", "D"]
             The temporal frequency to calculate the index on. The day of year ("D") or week of year
@@ -192,6 +218,8 @@ class BaseStandardIndex():
         df: pd.Dataframe
             Pandas dataframe with the calculated indicies for each precipitation column appended
             to the original dataframe.
+		df_params: pd.DataFrame
+			Pandas dataframe with the distribution parameters for each calendar month.
         '''
 
         # Check for duplicate dates
@@ -222,13 +250,15 @@ class BaseStandardIndex():
         freq_range = self._df_copy[self.freq_col].unique().tolist()
         # Loop over months
         dfs = []
+        dictpar = dict.fromkeys(freq_range)
         for p in precip_cols:
             dfs_p = pd.DataFrame()
             for j in freq_range:
                 precip_all = self._df_copy.loc[self._df_copy[self.freq_col]==j]
                 precip_single_df = precip_all.dropna().copy()
                 precip_single = precip_single_df[p].values
-                precip_sorted = np.sort(precip_single)[::-1]
+                precip_single_baseline = precip_single_df[p].loc[((precip_single_df[date_col].dt.year.values >=startyr) & (precip_single_df[date_col].dt.year.values <=endyr))].values
+                precip_sorted = np.sort(precip_single_baseline)[::-1] # why sorted?
 
                 # Fit distribution for particular series and month
                 params, p_zero = self.fit_distribution(
@@ -236,12 +266,17 @@ class BaseStandardIndex():
                 )
 
                 # Calculate SPI/SPEI
+                # NOTE: It's my understanding that p_zero does NOT need re-calculating based on the whole time series (as opposed to just 
+                # the base period above). ie. p_zero should represent the base period only, which is used to derive the parameters used in 
+                # the below CDF calcs. p_zero re-calculated using the whole time series would result in CDF's being calculated using 
+                # parameters from the baseline and a p_zero from the whole time series.
                 spi = self.cdf_to_ppf(precip_single, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
                 precip_single_df = precip_single_df[[date_col, idx_col]]
                 dfs_p = pd.concat([dfs_p, precip_single_df])
                 dfs_p = dfs_p.sort_values(date_col)
+                dictpar[j] = params
             dfs.append(dfs_p)
 
         df_all = reduce(
@@ -249,4 +284,4 @@ class BaseStandardIndex():
         )
         df_all = df_all.drop(columns=self.freq_col)
 
-        return df_all
+        return df_all, pd.DataFrame(dictpar).transpose()
