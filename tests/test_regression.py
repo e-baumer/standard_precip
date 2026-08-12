@@ -36,6 +36,13 @@ def _load_golden():
 GOLDEN = _load_golden()
 FIT_KWARGS = {("gam", "mle"): {"floc": 0}, ("wei", "mle"): {"floc": 0}}
 
+DEFAULT_TOL = {"rel": 1e-9}
+TOLERANCES = {("kap", "mle"): {"abs": 1e-5}}
+"""scipy's kappa4 MLE converges to the same optimum with hardware-dependent
+floating-point drift around 1e-7 (observed across GitHub Actions runners), so
+kap/mle cannot hold the 1e-9 gate; 1e-5 still catches any real change, which
+alters values by 1e-3 or more."""
+
 
 @pytest.mark.parametrize("dist_type, fit_type", GOLDEN, ids=lambda v: v)
 def test_numerical_equivalence(monthly_df, dist_type, fit_type):
@@ -50,6 +57,7 @@ def test_numerical_equivalence(monthly_df, dist_type, fit_type):
         **FIT_KWARGS.get((dist_type, fit_type), {}),
     )
     assert result["date"].astype(str).tolist() == expected["date"].tolist()
+    tol = TOLERANCES.get((dist_type, fit_type), DEFAULT_TOL)
     assert result["TotalPrecipitation_calculated_index"].values == pytest.approx(
-        expected["index_value"].values, rel=1e-9, nan_ok=True
+        expected["index_value"].values, nan_ok=True, **tol
     )
