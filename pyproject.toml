@@ -1,0 +1,61 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "standard-precip"
+version = "2.0.0"
+description = "Calculate the Standardized Precipitation Index (SPI) and Standardized Precipitation Evapotranspiration Index (SPEI)"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Eric Nussbaumer", email = "ebaumer@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["SPI", "SPEI", "drought", "precipitation", "climate", "meteorology"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: Hydrology",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.2",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "lmoments3>=1.0.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/e-baumer/standard_precip"
+Repository = "https://github.com/e-baumer/standard_precip"
+Issues = "https://github.com/e-baumer/standard_precip/issues"
+Changelog = "https://github.com/e-baumer/standard_precip/blob/master/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.8",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["standard_precip"]
+
+[tool.hatch.build.targets.sdist]
+include = ["standard_precip", "tests", "data", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
