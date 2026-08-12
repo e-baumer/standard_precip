@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as scs
 
-from standard_precip.lmoments import distr
+from standard_precip import _distributions
 
 
 class BaseStandardIndex():
@@ -82,7 +82,16 @@ class BaseStandardIndex():
         '''
 
         # Get distribution type
-        distrb = getattr(distr, dist_type)
+        spec = _distributions.get_spec(dist_type)
+        if fit_type == 'lmom':
+            distrb = spec.lmom_dist
+        elif fit_type == 'mle':
+            distrb = spec.mle_dist
+        else:
+            raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+        if distrb is None:
+            supported = 'L-moments' if spec.lmom_dist is not None else 'MLE'
+            raise ValueError(f"'{dist_type}' supports {supported} fitting only")
 
         # Determine zeros if distribution can not handle x = 0
         p_zero = None
@@ -90,8 +99,7 @@ class BaseStandardIndex():
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
 
-        # lmom_fit requires strictly more than numargs + 2 observations
-        min_samples = max(4, distrb.numargs + 3)
+        min_samples = _distributions.min_samples(spec, fit_type)
 
         if (data.shape[0] < min_samples) or (p_zero is not None and np.isclose(p_zero, 1.0)):
             warnings.warn(
@@ -104,15 +112,17 @@ class BaseStandardIndex():
             params = None
 
         else:
-            # Fit distribution
-            if fit_type == 'lmom':
-                params = distrb.lmom_fit(data, **kwargs)
-
-            elif fit_type == 'mle':
-                params = distrb.fit(data, **kwargs)
-
-            else:
-                raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+            try:
+                distrb, params = _distributions.fit(spec, data, fit_type, **kwargs)
+            except ValueError as err:
+                # e.g. kappa L-moment ratios can be unsolvable for some samples
+                warnings.warn(
+                    f"Could not fit '{dist_type}' distribution ({err}); "
+                    "returning NaN for this group.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+                params = None
 
         return distrb, params, p_zero
 

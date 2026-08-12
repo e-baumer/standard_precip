@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from standard_precip.lmoments import distr
+from standard_precip import _distributions
 
 
 def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str | None = None,
@@ -106,16 +106,8 @@ def best_fit_distribution(data: np.ndarray, dist_list: list, fit_type: str = 'lm
     ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
 
     for dist_name in dist_list:
-        distrb = getattr(distr, dist_name)
-
-        if fit_type == 'lmom':
-            params = distrb.lmom_fit(data, **kwargs)
-
-        elif fit_type == 'mle':
-            params = distrb.fit(data, **kwargs)
-
-        else:
-            raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+        spec = _distributions.get_spec(dist_name)
+        distrb, params = _distributions.fit(spec, data, fit_type, **kwargs)
 
         pdf = distrb.pdf(x, **params)
         sse[dist_name] = np.sum((y - pdf)**2)

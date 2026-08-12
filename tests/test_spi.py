@@ -22,12 +22,7 @@ GOLDEN_MONTHLY = [
     ("nor", "lmom", {}, 0, -0.753621),
     ("nor", "mle", {}, 0, -0.712801),
     ("pe3", "lmom", {}, 0, -0.652750),
-    # pe3 MLE recurses infinitely: scipy's pearson3_gen.fit uses the legacy
-    # super(type(self), self) idiom, which breaks when subclassed (as the vendored
-    # lmoments code does). Broken with scipy >= 1.7; fixed in the lmoments3 migration.
-    pytest.param(
-        "pe3", "mle", {}, 0, -0.670490, marks=pytest.mark.xfail(raises=RecursionError)
-    ),
+    ("pe3", "mle", {}, 0, -0.670490),
     ("wei", "lmom", {}, 0, -0.624138),
     # Unconstrained 3-parameter Weibull MLE is ill-posed: scipy >= ~1.12 converges to a
     # degenerate fit (loc above the data minimum) so the historical golden value
@@ -37,6 +32,12 @@ GOLDEN_MONTHLY = [
     ("wei", "mle", {"floc": 0}, 0, -0.638047),
     ("glo", "mle", {}, 0, -0.721554),
     ("gno", "mle", {}, 0, -0.655203),
+    # L-moments fitting for glo/gno is new with the lmoments3 migration (the vendored
+    # code raised NotImplementedError). These use Hosking's generalized logistic /
+    # generalized normal, which are different families than the scipy distributions
+    # used for the MLE variants above.
+    ("glo", "lmom", {}, 0, -0.746236),
+    ("gno", "lmom", {}, 0, -0.681238),
     ("kap", "mle", {}, 0, -0.312152),
     ("wak", "lmom", {}, 3, -0.204953),
 ]
@@ -84,6 +85,30 @@ def test_weekly_freq(wichita_df):
         wichita_df, "date", "precip", freq="W", fit_type="lmom", dist_type="gam"
     )
     assert df_spi["precip_calculated_index"].notna().sum() > 0
+
+
+def test_wak_mle_raises(monthly_df):
+    with pytest.raises(ValueError, match="L-moments fitting only"):
+        spi.SPI().calculate(
+            monthly_df, "date", "TotalPrecipitation", freq="M", fit_type="mle", dist_type="wak"
+        )
+
+
+def test_kap_lmom_unsolvable_group_warns(monthly_df):
+    # Kappa L-moment ratios are unsolvable for some months of this dataset; the
+    # affected groups should warn and yield NaN instead of raising.
+    with pytest.warns(UserWarning, match="Could not fit 'kap'"):
+        df_spi = spi.SPI().calculate(
+            monthly_df, "date", "TotalPrecipitation", freq="M", fit_type="lmom", dist_type="kap"
+        )
+    assert df_spi["TotalPrecipitation_calculated_index"].notna().sum() > 0
+
+
+def test_unknown_dist_raises(monthly_df):
+    with pytest.raises(ValueError, match="not a supported distribution"):
+        spi.SPI().calculate(
+            monthly_df, "date", "TotalPrecipitation", freq="M", dist_type="nope"
+        )
 
 
 def test_daily_nan(daily_test_df):
