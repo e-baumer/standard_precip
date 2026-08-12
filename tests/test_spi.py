@@ -5,10 +5,7 @@ from standard_precip import spi
 
 INDEX_COL = "TotalPrecipitation_calculated_index"
 
-# Golden values computed with the original vendored l-moments code; they pin the
-# numerical behavior of every supported (dist_type, fit_type) combination.
 GOLDEN_MONTHLY = [
-    # (dist_type, fit_type, dist_kwargs, iloc, expected)
     ("gam", "lmom", {}, 0, -0.678092),
     ("gam", "mle", {"floc": 0}, 0, -0.696543),
     ("exp", "lmom", {}, 0, -0.575136),
@@ -24,18 +21,9 @@ GOLDEN_MONTHLY = [
     ("pe3", "lmom", {}, 0, -0.652750),
     ("pe3", "mle", {}, 0, -0.670490),
     ("wei", "lmom", {}, 0, -0.624138),
-    # Unconstrained 3-parameter Weibull MLE is ill-posed: scipy >= ~1.12 converges to a
-    # degenerate fit (loc above the data minimum) so the historical golden value
-    # (-0.625167) is no longer reproducible. Constraining floc=0 - appropriate for
-    # precipitation, and what the gam MLE test already does - is stable across scipy
-    # versions.
     ("wei", "mle", {"floc": 0}, 0, -0.638047),
     ("glo", "mle", {}, 0, -0.721554),
     ("gno", "mle", {}, 0, -0.655203),
-    # L-moments fitting for glo/gno is new with the lmoments3 migration (the vendored
-    # code raised NotImplementedError). These use Hosking's generalized logistic /
-    # generalized normal, which are different families than the scipy distributions
-    # used for the MLE variants above.
     ("glo", "lmom", {}, 0, -0.746236),
     ("gno", "lmom", {}, 0, -0.681238),
     ("kap", "mle", {}, 0, -0.312152),
@@ -95,8 +83,6 @@ def test_wak_mle_raises(monthly_df):
 
 
 def test_kap_lmom_unsolvable_group_warns(monthly_df):
-    # Kappa L-moment ratios are unsolvable for some months of this dataset; the
-    # affected groups should warn and yield NaN instead of raising.
     with pytest.warns(UserWarning, match="Could not fit 'kap'"):
         df_spi = spi.SPI().calculate(
             monthly_df, "date", "TotalPrecipitation", freq="M", fit_type="lmom", dist_type="kap"

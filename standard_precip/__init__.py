@@ -6,7 +6,7 @@ from standard_precip.spi import SPI
 
 try:
     __version__ = version("standard-precip")
-except PackageNotFoundError:  # running from a source tree without installation
+except PackageNotFoundError:
     __version__ = "0.0.0.dev0"
 
 __all__ = ["SPI", "SPEI", "BaseStandardIndex", "__version__"]

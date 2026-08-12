@@ -21,9 +21,9 @@ def test_best_fit_distribution_lmom(gamma_sample, tmp_path):
     assert (tmp_path / "fits.png").exists()
     dists = [name for name, _ in sse]
     errors = [err for _, err in sse]
-    assert sorted(errors) == errors  # sorted ascending, best first
+    assert sorted(errors) == errors
     assert set(dists) == {"gam", "nor", "gum"}
-    assert dists[0] == "gam"  # data was drawn from a gamma
+    assert dists[0] == "gam"
 
 
 def test_best_fit_distribution_mle(gamma_sample, tmp_path):

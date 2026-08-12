@@ -3,10 +3,16 @@
 This script pins the full calculated-index series for every supported
 (dist_type, fit_type) combination on data/monthly_data.csv. It was originally
 run against the vendored l-moments code immediately before the migration to the
-external lmoments3 package, so the golden file proves numerical equivalence
-across that swap. Rerun it only when a numerical behavior change is intended:
+external lmoments3 package, proving numerical equivalence across that swap.
 
-    PYTHONPATH=. python tests/gen_golden.py
+Regenerated once since: observations outside the support of the fitted
+distribution now map to large finite index values (CDF clipped at 1e-16)
+instead of NaN. That change affected only cells that were previously NaN;
+every previously finite value is unchanged.
+
+Rerun only when a numerical behavior change is intended:
+
+    uv run python tests/gen_golden.py
 """
 
 from pathlib import Path
@@ -18,9 +24,6 @@ from standard_precip.spi import SPI
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 GOLDEN_CSV = Path(__file__).resolve().parent / "regression_golden.csv"
 
-# pe3/mle is absent: it crashed with RecursionError (scipy subclassing bug) in
-# every version of this package prior to the lmoments3 migration, so there is
-# no historical behavior to preserve.
 COMBOS = [
     ("gam", "lmom", {}),
     ("exp", "lmom", {}),

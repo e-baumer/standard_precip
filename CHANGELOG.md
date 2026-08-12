@@ -34,6 +34,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Small frequency groups with non-gamma distributions no longer crash (`params=None` guard);
   insufficient data now consistently yields NaN plus a `UserWarning`.
 - `calculate()` and `rolling_window_sum()` no longer mutate the caller's DataFrame.
+- With `scale > 1`, rows are sorted by date before the rolling window is applied; unsorted
+  input previously produced silently wrong sums. A warning is emitted when the dates are not
+  regularly spaced (the window would span gaps in the record).
+- With multiple precipitation columns, a NaN in one column no longer removes that row from the
+  other columns' distribution fits and outputs.
+- Observations outside the support of the fitted distribution map to large finite index values
+  (about ±8.2; CDF clipped at float64 resolution) instead of NaN — important when transforming
+  records against a baseline period. All previously finite values are unchanged.
+- A gamma/Pearson-III frequency group with no observations (e.g. a partial-year baseline with
+  daily or weekly frequency) yields NaN instead of raising ZeroDivisionError.
+- A group whose fit fails to converge (lmoments3 raises a bare `Exception` for some samples)
+  yields NaN instead of crashing the whole calculation.
+- Input DataFrames with duplicate index labels (e.g. from `pd.concat` without `ignore_index`)
+  no longer break the baseline-period path; the working copy's index is reset internally.
+- `baseline_start`/`baseline_end` accept numpy integers (e.g. `df['year'].max()`) as years;
+  previously they were misinterpreted as nanosecond timestamps.
+- `best_fit_distribution` now fits each candidate exactly as `calculate()` does (zero-stripping
+  and mixed-CDF weighting for gamma/Pearson III, gamma MLE `floc=0` default), so its ranking
+  corresponds to the model the index calculation actually uses.
+- `return_params`: `n_fit` counts the observations actually used in the fit (zeros stripped for
+  gamma/Pearson III are excluded).
+- Unfittable frequency groups produce one aggregated warning per column instead of one warning
+  per group (sparse daily records previously emitted hundreds).
+- A user-supplied `freq_col` literally named `"freq"` is no longer dropped from the output.
+- The zero-stripping distribution set lives on the immutable distribution registry; the mutable
+  class-level `non_zero_distr` list (which leaked mutations across all instances) is removed.
 - The internal l-moments code no longer sorts the input array in place.
 - `freq_col` is now usable: the column is carried into the calculation (it previously always
   raised `KeyError`) and is validated.
@@ -41,10 +67,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - **Python ≥ 3.10 required**; dependencies now have tested lower bounds (numpy ≥ 1.24,
-  pandas ≥ 2.0, scipy ≥ 1.10, matplotlib ≥ 3.7).
+  pandas ≥ 2.2, scipy ≥ 1.10, matplotlib ≥ 3.7).
 - **Vendored GPL-3 l-moments code removed**; L-moment fitting now uses the maintained
-  [lmoments3](https://github.com/Ouranosinc/lmoments3) package (#23). A regression gate verifies
-  numerical equivalence to 1e-9 across the swap. MLE fitting uses plain scipy distributions.
+  [lmoments3](https://github.com/Ouranosinc/lmoments3) package (#23), with `>=1.0.7` required:
+  1.0.6 produces different (incorrect) Wakeby and Generalized Normal L-moment fits. A regression
+  gate verifies numerical equivalence to 1e-9 across the swap. MLE fitting uses plain scipy
+  distributions. The full test suite is verified against the declared minimum versions
+  (numpy 1.24 / scipy 1.10 / pandas 2.2 / matplotlib 3.7 / lmoments3 1.0.7) and the current
+  locked versions.
 - **Gamma MLE fixes `loc=0` by default** (pass `floc`/`loc` to override): unconstrained-loc
   gamma MLE is ill-posed on zero-stripped precipitation data and produced extreme index
   values (#22). For the same reason, unconstrained Weibull MLE became degenerate on modern

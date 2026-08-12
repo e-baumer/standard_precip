@@ -27,8 +27,6 @@ class BaseStandardIndex:
     - PET or (P-PET) can take on negative values.
     """
 
-    #: Distributions that are undefined at zero; zero observations are removed
-    #: before fitting and handled through the mixed CDF (Thom, 1966).
     non_zero_distr = ["gam", "pe3"]
 
     @staticmethod
@@ -77,16 +75,18 @@ class BaseStandardIndex:
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
 
-        For distributions that use the Gamma Function (Gamma and Pearson 3) remove observations
-        that have 0 precipitation values and fit using non-zero observations. Also find probability
-        of zero observation (estimated by number of zero obs / total obs). This is for latter use
-        in calculating the CDF using (Thom, 1966. Some Methods of Climatological Analysis)
+        For distributions that are undefined at zero (Gamma and Pearson 3), zero observations
+        are removed and the fit uses the non-zero observations only. The probability of a zero
+        observation (number of zero obs / total obs) is returned for later use in the mixed
+        CDF of Thom, 1966 (Some Methods of Climatological Analysis).
 
-        Returns a tuple of (distribution, params, p_zero) where params is None when there is
-        not enough data to fit the distribution.
+        Returns a tuple of (distribution, params, p_zero). params is None when the group has
+        too few observations to fit, or when the fitting algorithm fails (for example kappa
+        L-moment ratios can be unsolvable, and lmoments3 raises 'Failed to converge' for some
+        samples); no warning is emitted here - calculate() aggregates fit failures into one
+        warning per column. TypeErrors from invalid fit arguments propagate unchanged.
         """
 
-        # Get distribution type
         spec = _distributions.get_spec(dist_type)
         if fit_type == "lmom":
             distrb = spec.lmom_dist
@@ -98,47 +98,21 @@ class BaseStandardIndex:
             supported = "L-moments" if spec.lmom_dist is not None else "MLE"
             raise ValueError(f"'{dist_type}' supports {supported} fitting only")
 
-        # Determine zeros if distribution can not handle x = 0
         p_zero = None
-        if dist_type in self.non_zero_distr:
+        if spec.strip_zeros and data.shape[0] > 0:
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
-
-        # Unconstrained-loc gamma MLE on the remaining strictly positive data is
-        # ill-posed and produces wildly wrong index values for some series. After
-        # zero removal the support is (0, inf), so fix loc=0 unless the caller
-        # constrains it explicitly. Published SPI formulations all use a
-        # two-parameter gamma.
-        if (
-            dist_type == "gam"
-            and fit_type == "mle"
-            and not any(k in kwargs for k in ("floc", "loc"))
-        ):
-            kwargs = {**kwargs, "floc": 0}
 
         min_samples = _distributions.min_samples(spec, fit_type)
 
         if (data.shape[0] < min_samples) or (p_zero is not None and np.isclose(p_zero, 1.0)):
-            warnings.warn(
-                f"Insufficient data to fit '{dist_type}' distribution "
-                f"({data.shape[0]} non-zero observations, {min_samples} required); "
-                "returning NaN for this group.",
-                UserWarning,
-                stacklevel=3,
-            )
             params = None
-
         else:
             try:
                 distrb, params = _distributions.fit(spec, data, fit_type, **kwargs)
-            except ValueError as err:
-                # e.g. kappa L-moment ratios can be unsolvable for some samples
-                warnings.warn(
-                    f"Could not fit '{dist_type}' distribution ({err}); "
-                    "returning NaN for this group.",
-                    UserWarning,
-                    stacklevel=3,
-                )
+            except TypeError:
+                raise
+            except Exception:
                 params = None
 
         return distrb, params, p_zero
@@ -149,9 +123,16 @@ class BaseStandardIndex:
         cdf. Apply the inverse normal distribution to the cdf to get the SPI
         SPEI. This process is best described in Lloyd-Hughes and Saunders, 2002
         which is included in the documentation.
+
+        The CDF is clipped to [1e-16, 1 - 1e-16] before the inverse normal is
+        applied, so observations outside the support of the fitted distribution
+        (common when transforming data against a baseline period) map to large
+        finite index values (about +/-8.2) rather than NaN. The epsilon is at
+        the resolution of float64 near 0 and 1, so any CDF value distinguishable
+        from 0/1 in double precision is unaffected. NaNs from unfittable groups
+        are preserved.
         """
 
-        # Calculate the CDF of observed precipitation on a given time scale
         if params:
             if p_zero is not None:
                 cdf = p_zero + (1 - p_zero) * distrb.cdf(data, **params)
@@ -160,18 +141,33 @@ class BaseStandardIndex:
         else:
             cdf = np.full(np.shape(data), np.nan)
 
-        # Apply inverse normal distribution
-        norm_ppf = scs.norm.ppf(cdf)
-        norm_ppf[np.isinf(norm_ppf)] = np.nan
+        cdf = np.clip(cdf, 1e-16, 1 - 1e-16)
 
-        return norm_ppf
+        return scs.norm.ppf(cdf)
+
+    @staticmethod
+    def _warn_irregular_spacing(dates, date_col):
+        """Warn when dates are not regularly spaced. The rolling window used for
+        scale > 1 sums consecutive rows, so a gap in the record makes the window
+        silently span non-adjacent periods."""
+        if len(dates) < 3:
+            return
+        if pd.infer_freq(pd.DatetimeIndex(dates)) is None:
+            warnings.warn(
+                f"Dates in '{date_col}' are not regularly spaced. With scale > 1 the "
+                "rolling window sums consecutive rows, so gaps in the record will make "
+                "the window span non-adjacent periods.",
+                UserWarning,
+                stacklevel=3,
+            )
 
     @staticmethod
     def _baseline_timestamp(value, end: bool):
-        """Normalize a baseline bound to a pd.Timestamp. Integers are treated as
-        years: the start of the year for the lower bound, the end of the year
-        for the upper bound (both inclusive)."""
-        if isinstance(value, int):
+        """Normalize a baseline bound to a pd.Timestamp. Integers (including
+        numpy integers) are treated as years: the start of the year for the
+        lower bound, the end of the year for the upper bound (both inclusive)."""
+        if isinstance(value, (int, np.integer)) and not isinstance(value, bool):
+            value = int(value)
             if end:
                 return pd.Timestamp(year=value, month=12, day=31, hour=23, minute=59, second=59)
             return pd.Timestamp(year=value, month=1, day=1)
@@ -277,20 +273,25 @@ class BaseStandardIndex:
         -------
         df: pd.Dataframe
             Pandas dataframe with the calculated indices for each precipitation column appended
-            to the original dataframe. If return_params is True, a tuple of
-            (df, params_dataframe) is returned instead.
+            to the original dataframe, sorted by date. Rows are sorted before the rolling
+            window is applied, so unsorted input is handled correctly; a NaN in one
+            precipitation column does not affect the fit or output of the others. If
+            return_params is True, a tuple of (df, params_dataframe) is returned instead.
         """
 
-        # Check for duplicate dates
-        df = self.check_duplicate_dates(df, date_col)
         if isinstance(precip_cols, str):
             precip_cols = [precip_cols]
-
-        if scale > 1:
-            df, precip_cols = self.rolling_window_sum(df, precip_cols, scale)
-
         if (baseline_start is None) != (baseline_end is None):
             raise ValueError("baseline_start and baseline_end must be given together")
+
+        df = df.copy()
+        df[date_col] = pd.to_datetime(df[date_col])
+        df = self.check_duplicate_dates(df, date_col)
+        df = df.sort_values(date_col).reset_index(drop=True)
+
+        if scale > 1:
+            self._warn_irregular_spacing(df[date_col], date_col)
+            df, precip_cols = self.rolling_window_sum(df, precip_cols, scale)
 
         keep_cols = [date_col] + precip_cols
         if freq_col is not None:
@@ -298,10 +299,10 @@ class BaseStandardIndex:
                 raise ValueError(f"freq_col '{freq_col}' is not a column of the dataframe")
             keep_cols.append(freq_col)
         df_copy = df[keep_cols].copy()
-        df_copy[date_col] = pd.to_datetime(df_copy[date_col])
 
-        if freq_col is None:
-            freq_col = "freq"
+        synthesized_freq_col = freq_col is None
+        if synthesized_freq_col:
+            freq_col = "__freq_group__"
 
             if freq == "D":
                 df_copy[freq_col] = df_copy[date_col].dt.dayofyear
@@ -310,8 +311,6 @@ class BaseStandardIndex:
             elif freq == "M":
                 df_copy[freq_col] = df_copy[date_col].dt.month
             elif freq is None:
-                # No seasonal conditioning (e.g. annual totals): the whole series
-                # forms a single fitting population.
                 df_copy[freq_col] = 0
             else:
                 raise ValueError(
@@ -335,19 +334,17 @@ class BaseStandardIndex:
                 )
 
         freq_range = df_copy[freq_col].unique().tolist()
-        # Loop over the frequency groups (e.g. months of the year)
+        strip_zeros = _distributions.get_spec(dist_type).strip_zeros
         dfs = []
         params_rows = []
         for p in precip_cols:
             dfs_p = []
+            unfit_groups = []
             for j in freq_range:
                 precip_all = df_copy.loc[df_copy[freq_col] == j]
-                precip_single_df = precip_all.dropna().copy()
+                precip_single_df = precip_all.dropna(subset=[date_col, p]).copy()
                 precip_single = precip_single_df[p].values
 
-                # Fit distribution for particular series and frequency group. With a
-                # baseline period, the distribution (and p_zero) is fit on the baseline
-                # observations only, then applied to the whole group.
                 if baseline_mask is not None:
                     fit_values = precip_single_df.loc[
                         baseline_mask.loc[precip_single_df.index], p
@@ -357,31 +354,44 @@ class BaseStandardIndex:
                 distrb, params, p_zero = self.fit_distribution(
                     fit_values, dist_type, fit_type, **dist_kwargs
                 )
+                if params is None:
+                    unfit_groups.append(j)
 
                 if return_params:
+                    n_fit = fit_values.shape[0]
+                    if strip_zeros:
+                        n_fit = int(np.count_nonzero(fit_values))
                     row = {
                         "column": p,
                         "freq_group": j,
                         "dist_type": dist_type,
                         "fit_type": fit_type,
-                        "n_fit": fit_values.shape[0],
+                        "n_fit": n_fit,
                         "p_zero": p_zero,
                     }
                     if params:
                         row.update(params)
                     params_rows.append(row)
 
-                # Calculate SPI/SPEI
                 spi = self.cdf_to_ppf(precip_single, distrb, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
                 dfs_p.append(precip_single_df[[date_col, idx_col]])
+            if unfit_groups:
+                warnings.warn(
+                    f"Could not fit '{dist_type}' distribution for {len(unfit_groups)} of "
+                    f"{len(freq_range)} frequency groups of column '{p}' (too few "
+                    "observations, or the fit failed to converge); their index values "
+                    "are NaN.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             dfs.append(pd.concat(dfs_p).sort_values(date_col))
 
         df_all = reduce(
             lambda left, right: pd.merge(left, right, on=date_col, how="left"), dfs, df_copy
         )
-        if freq_col == "freq":
+        if synthesized_freq_col:
             df_all = df_all.drop(columns=freq_col)
 
         if return_params:

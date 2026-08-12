@@ -7,8 +7,6 @@ from standard_precip import SPEI
 
 @pytest.fixture
 def water_balance_df():
-    # Synthetic monthly climatic water balance D = P - PET: seasonal, frequently
-    # negative, 50 years.
     rng = np.random.default_rng(123)
     dates = pd.date_range("1970-01-01", periods=600, freq="MS")
     seasonal = 30 * np.sin(2 * np.pi * (dates.month - 1) / 12)
@@ -28,8 +26,6 @@ def test_spei_glo_lmom(water_balance_df):
 
 
 def test_spei_negative_values_bypass_p_zero(water_balance_df):
-    # glo is not in non_zero_distr, so no zero-stripping/mixed-CDF path is taken
-    # and negative water-balance values are fit directly.
     _, params = SPEI().calculate(
         water_balance_df,
         "date",
@@ -46,5 +42,4 @@ def test_spei_golden(water_balance_df):
     out = SPEI().calculate(
         water_balance_df, "date", "wb", freq="M", dist_type="glo", fit_type="lmom"
     )
-    # Pinned on first implementation (lmoments3 Hosking generalized logistic).
     assert out["wb_calculated_index"].iloc[0] == pytest.approx(-1.002073, abs=1e-4)

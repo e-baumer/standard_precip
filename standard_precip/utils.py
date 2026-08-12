@@ -70,6 +70,12 @@ def best_fit_distribution(
     Squares error between fitted distribution and pdf.
     Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
 
+    Each candidate is fit exactly the way calculate() fits it: for distributions that are
+    undefined at zero (gamma, Pearson III) the zero observations are removed before fitting
+    and the fitted density is weighted by (1 - p_zero) per the mixed CDF of Thom (1966),
+    and gamma MLE fixes loc=0 unless a location constraint is passed - so the selected
+    distribution corresponds to the model the index calculation will actually use.
+
     Parameters
     ----------
     data: np.array size: [Number Observations, ]
@@ -111,6 +117,9 @@ def best_fit_distribution(
     sse: dict (key - distribution, value - sum of square error)
         The sum of the squares error between fitted distribution and pdf.
     """
+    data = np.asarray(data)
+    p_zero = float(np.mean(data == 0)) if data.size else 0.0
+
     y, x = np.histogram(data, bins=bins, density=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
@@ -120,9 +129,12 @@ def best_fit_distribution(
 
     for dist_name in dist_list:
         spec = _distributions.get_spec(dist_name)
-        distrb, params = _distributions.fit(spec, data, fit_type, **kwargs)
+        fit_data = data[data != 0] if spec.strip_zeros else data
+        distrb, params = _distributions.fit(spec, fit_data, fit_type, **kwargs)
 
         pdf = distrb.pdf(x, **params)
+        if spec.strip_zeros:
+            pdf = (1 - p_zero) * pdf
         sse[dist_name] = np.sum((y - pdf) ** 2)
         ax.plot(x, pdf, label=dist_name)
 

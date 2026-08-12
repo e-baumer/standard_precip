@@ -25,10 +25,10 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=1.24",
-    "pandas>=2.0",
+    "pandas>=2.2",
     "scipy>=1.10",
     "matplotlib>=3.7",
-    "lmoments3>=1.0.6",
+    "lmoments3>=1.0.7",
 ]
 
 [project.urls]
