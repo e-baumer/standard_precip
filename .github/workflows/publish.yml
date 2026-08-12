@@ -1,0 +1,22 @@
+# Publishes to PyPI via trusted publishing (OIDC - no API token stored in the
+# repo). One-time setup: on pypi.org, under the standard-precip project's
+# "Publishing" settings, register this repository (e-baumer/standard_precip)
+# and workflow file (publish.yml) as a trusted publisher.
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - run: uv publish --trusted-publishing always
