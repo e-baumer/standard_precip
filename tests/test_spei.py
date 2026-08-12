@@ -31,7 +31,12 @@ def test_spei_negative_values_bypass_p_zero(water_balance_df):
     # glo is not in non_zero_distr, so no zero-stripping/mixed-CDF path is taken
     # and negative water-balance values are fit directly.
     _, params = SPEI().calculate(
-        water_balance_df, "date", "wb", freq="M", dist_type="glo", fit_type="lmom",
+        water_balance_df,
+        "date",
+        "wb",
+        freq="M",
+        dist_type="glo",
+        fit_type="lmom",
         return_params=True,
     )
     assert params["p_zero"].isna().all()

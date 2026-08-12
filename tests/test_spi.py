@@ -106,9 +106,7 @@ def test_kap_lmom_unsolvable_group_warns(monthly_df):
 
 def test_unknown_dist_raises(monthly_df):
     with pytest.raises(ValueError, match="not a supported distribution"):
-        spi.SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M", dist_type="nope"
-        )
+        spi.SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M", dist_type="nope")
 
 
 def test_daily_nan(daily_test_df):

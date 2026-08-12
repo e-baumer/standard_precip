@@ -8,8 +8,8 @@ import scipy.stats as scs
 from standard_precip import _distributions
 
 
-class BaseStandardIndex():
-    '''
+class BaseStandardIndex:
+    """
     Calculate the SPI or SPEI index. A user specified distribution is fit to the precip data.
     The CDF of this distribution is then calculated after which the the standard normal
     distribution is calculated which gives the index. A distribution can be fit over the
@@ -25,36 +25,42 @@ class BaseStandardIndex():
     defined over interval (0, inf). Python's gamma distribution is defined
     over [0, inf). In addition SPEI which is constructed from precipitation
     - PET or (P-PET) can take on negative values.
-    '''
+    """
 
     #: Distributions that are undefined at zero; zero observations are removed
     #: before fitting and handled through the mixed CDF (Thom, 1966).
-    non_zero_distr = ['gam', 'pe3']
+    non_zero_distr = ["gam", "pe3"]
 
     @staticmethod
-    def rolling_window_sum(df: pd.DataFrame, precip_cols: list, span: int = 1,
-                           window_type: str | None = None, center: bool = False, **kwargs):
-        '''
+    def rolling_window_sum(
+        df: pd.DataFrame,
+        precip_cols: list,
+        span: int = 1,
+        window_type: str | None = None,
+        center: bool = False,
+        **kwargs,
+    ):
+        """
         This is a helper method which will find the rolling sum of precipitation data.
         Returns a new DataFrame; the input DataFrame is not modified.
-        '''
+        """
         df = df.copy()
         precip_cols_new = []
         for p in precip_cols:
             new_col_name = p + f"_scale_{span}"
-            df[new_col_name] = df[p].rolling(
-                window=span, win_type=window_type, center=center, **kwargs
-            ).sum()
+            df[new_col_name] = (
+                df[p].rolling(window=span, win_type=window_type, center=center, **kwargs).sum()
+            )
             precip_cols_new.append(new_col_name)
 
         return df, precip_cols_new
 
     @staticmethod
     def check_duplicate_dates(df, date_col):
-        '''
+        """
         Method to check duplicate dates in dataframe. If duplicates are found, the row corresponding
         to the first date found is used.
-        '''
+        """
         if df.duplicated(subset=date_col).any():
             warnings.warn(
                 "Found duplicate dates in dataframe. Removing duplicates and using "
@@ -66,9 +72,8 @@ class BaseStandardIndex():
 
         return df
 
-    def fit_distribution(self, data: np.ndarray, dist_type: str, fit_type: str = 'lmom',
-                         **kwargs):
-        '''
+    def fit_distribution(self, data: np.ndarray, dist_type: str, fit_type: str = "lmom", **kwargs):
+        """
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
 
@@ -79,18 +84,18 @@ class BaseStandardIndex():
 
         Returns a tuple of (distribution, params, p_zero) where params is None when there is
         not enough data to fit the distribution.
-        '''
+        """
 
         # Get distribution type
         spec = _distributions.get_spec(dist_type)
-        if fit_type == 'lmom':
+        if fit_type == "lmom":
             distrb = spec.lmom_dist
-        elif fit_type == 'mle':
+        elif fit_type == "mle":
             distrb = spec.mle_dist
         else:
             raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
         if distrb is None:
-            supported = 'L-moments' if spec.lmom_dist is not None else 'MLE'
+            supported = "L-moments" if spec.lmom_dist is not None else "MLE"
             raise ValueError(f"'{dist_type}' supports {supported} fitting only")
 
         # Determine zeros if distribution can not handle x = 0
@@ -104,9 +109,12 @@ class BaseStandardIndex():
         # zero removal the support is (0, inf), so fix loc=0 unless the caller
         # constrains it explicitly. Published SPI formulations all use a
         # two-parameter gamma.
-        if dist_type == 'gam' and fit_type == 'mle' \
-                and not any(k in kwargs for k in ('floc', 'loc')):
-            kwargs = {**kwargs, 'floc': 0}
+        if (
+            dist_type == "gam"
+            and fit_type == "mle"
+            and not any(k in kwargs for k in ("floc", "loc"))
+        ):
+            kwargs = {**kwargs, "floc": 0}
 
         min_samples = _distributions.min_samples(spec, fit_type)
 
@@ -136,12 +144,12 @@ class BaseStandardIndex():
         return distrb, params, p_zero
 
     def cdf_to_ppf(self, data, distrb, params, p_zero):
-        '''
+        """
         Take the specific distributions fitted parameters and calculate the
         cdf. Apply the inverse normal distribution to the cdf to get the SPI
         SPEI. This process is best described in Lloyd-Hughes and Saunders, 2002
         which is included in the documentation.
-        '''
+        """
 
         # Calculate the CDF of observed precipitation on a given time scale
         if params:
@@ -160,21 +168,31 @@ class BaseStandardIndex():
 
     @staticmethod
     def _baseline_timestamp(value, end: bool):
-        '''Normalize a baseline bound to a pd.Timestamp. Integers are treated as
+        """Normalize a baseline bound to a pd.Timestamp. Integers are treated as
         years: the start of the year for the lower bound, the end of the year
-        for the upper bound (both inclusive).'''
+        for the upper bound (both inclusive)."""
         if isinstance(value, int):
             if end:
                 return pd.Timestamp(year=value, month=12, day=31, hour=23, minute=59, second=59)
             return pd.Timestamp(year=value, month=1, day=1)
         return pd.Timestamp(value)
 
-    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list,
-                  freq: str | None = "M", scale: int = 1, freq_col: str | None = None,
-                  fit_type: str = 'lmom', dist_type: str = 'gam', baseline_start=None,
-                  baseline_end=None, return_params: bool = False,
-                  **dist_kwargs) -> pd.DataFrame:
-        '''
+    def calculate(
+        self,
+        df: pd.DataFrame,
+        date_col: str,
+        precip_cols: list,
+        freq: str | None = "M",
+        scale: int = 1,
+        freq_col: str | None = None,
+        fit_type: str = "lmom",
+        dist_type: str = "gam",
+        baseline_start=None,
+        baseline_end=None,
+        return_params: bool = False,
+        **dist_kwargs,
+    ) -> pd.DataFrame:
+        """
         Calculate the index.
 
         Check https://docs.scipy.org/doc/scipy/reference/stats.html for
@@ -188,7 +206,8 @@ class BaseStandardIndex():
             column should also be given in the dataframe.
 
         date_col: str
-            The column name for the date column. Date specification should follow the strftime format.
+            The column name for the date column. Date specification should follow the strftime
+            format.
 
         precip_cols: list
             List of columns with precipitation data. Each column is treated as a separate set of
@@ -213,9 +232,9 @@ class BaseStandardIndex():
             index is to be calculated. If freq="M" then this is the number of months.
 
         fit_type: str ("lmom" or "mle")
-            Specify the type of fit to use for fitting distribution to the precipitation data. Either
-            L-moments (lmom) or Maximum Likelihood Estimation (mle). Note use L-moments when comparing
-            to NCAR's NCL code and R's packages to calculate SPI and SPEI.
+            Specify the type of fit to use for fitting distribution to the precipitation data.
+            Either L-moments (lmom) or Maximum Likelihood Estimation (mle). Note use L-moments
+            when comparing to NCAR's NCL code and R's packages to calculate SPI and SPEI.
 
         dist_type: str
             The distribution type to fit using either L-moments or MLE
@@ -260,7 +279,7 @@ class BaseStandardIndex():
             Pandas dataframe with the calculated indices for each precipitation column appended
             to the original dataframe. If return_params is True, a tuple of
             (df, params_dataframe) is returned instead.
-        '''
+        """
 
         # Check for duplicate dates
         df = self.check_duplicate_dates(df, date_col)
@@ -282,7 +301,7 @@ class BaseStandardIndex():
         df_copy[date_col] = pd.to_datetime(df_copy[date_col])
 
         if freq_col is None:
-            freq_col = 'freq'
+            freq_col = "freq"
 
             if freq == "D":
                 df_copy[freq_col] = df_copy[date_col].dt.dayofyear
@@ -308,9 +327,7 @@ class BaseStandardIndex():
             start_ts = self._baseline_timestamp(baseline_start, end=False)
             end_ts = self._baseline_timestamp(baseline_end, end=True)
             if start_ts > end_ts:
-                raise ValueError(
-                    f"baseline_start ({start_ts}) is after baseline_end ({end_ts})"
-                )
+                raise ValueError(f"baseline_start ({start_ts}) is after baseline_end ({end_ts})")
             baseline_mask = df_copy[date_col].between(start_ts, end_ts)
             if not baseline_mask.any():
                 raise ValueError(
@@ -343,12 +360,12 @@ class BaseStandardIndex():
 
                 if return_params:
                     row = {
-                        'column': p,
-                        'freq_group': j,
-                        'dist_type': dist_type,
-                        'fit_type': fit_type,
-                        'n_fit': fit_values.shape[0],
-                        'p_zero': p_zero,
+                        "column": p,
+                        "freq_group": j,
+                        "dist_type": dist_type,
+                        "fit_type": fit_type,
+                        "n_fit": fit_values.shape[0],
+                        "p_zero": p_zero,
                     }
                     if params:
                         row.update(params)
@@ -362,15 +379,17 @@ class BaseStandardIndex():
             dfs.append(pd.concat(dfs_p).sort_values(date_col))
 
         df_all = reduce(
-            lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, df_copy
+            lambda left, right: pd.merge(left, right, on=date_col, how="left"), dfs, df_copy
         )
-        if freq_col == 'freq':
+        if freq_col == "freq":
             df_all = df_all.drop(columns=freq_col)
 
         if return_params:
-            df_params = pd.DataFrame(params_rows).sort_values(
-                ['column', 'freq_group']
-            ).reset_index(drop=True)
+            df_params = (
+                pd.DataFrame(params_rows)
+                .sort_values(["column", "freq_group"])
+                .reset_index(drop=True)
+            )
             return df_all, df_params
 
         return df_all

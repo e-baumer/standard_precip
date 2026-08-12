@@ -37,18 +37,18 @@ class DistSpec:
 
 
 DISTRIBUTIONS: dict[str, DistSpec] = {
-    'gam': DistSpec(lm3_distr.gam, scs.gamma, ('a', 'loc', 'scale')),
-    'exp': DistSpec(lm3_distr.exp, scs.expon, ('loc', 'scale')),
-    'gev': DistSpec(lm3_distr.gev, scs.genextreme, ('c', 'loc', 'scale')),
-    'gpa': DistSpec(lm3_distr.gpa, scs.genpareto, ('c', 'loc', 'scale')),
-    'gum': DistSpec(lm3_distr.gum, scs.gumbel_r, ('loc', 'scale')),
-    'nor': DistSpec(lm3_distr.nor, scs.norm, ('loc', 'scale')),
-    'pe3': DistSpec(lm3_distr.pe3, scs.pearson3, ('skew', 'loc', 'scale')),
-    'wei': DistSpec(lm3_distr.wei, scs.weibull_min, ('c', 'loc', 'scale')),
-    'wak': DistSpec(lm3_distr.wak, None, None),
-    'glo': DistSpec(lm3_distr.glo, scs.genlogistic, ('c', 'loc', 'scale')),
-    'gno': DistSpec(lm3_distr.gno, scs.gennorm, ('beta', 'loc', 'scale')),
-    'kap': DistSpec(lm3_distr.kap, scs.kappa4, ('h', 'k', 'loc', 'scale')),
+    "gam": DistSpec(lm3_distr.gam, scs.gamma, ("a", "loc", "scale")),
+    "exp": DistSpec(lm3_distr.exp, scs.expon, ("loc", "scale")),
+    "gev": DistSpec(lm3_distr.gev, scs.genextreme, ("c", "loc", "scale")),
+    "gpa": DistSpec(lm3_distr.gpa, scs.genpareto, ("c", "loc", "scale")),
+    "gum": DistSpec(lm3_distr.gum, scs.gumbel_r, ("loc", "scale")),
+    "nor": DistSpec(lm3_distr.nor, scs.norm, ("loc", "scale")),
+    "pe3": DistSpec(lm3_distr.pe3, scs.pearson3, ("skew", "loc", "scale")),
+    "wei": DistSpec(lm3_distr.wei, scs.weibull_min, ("c", "loc", "scale")),
+    "wak": DistSpec(lm3_distr.wak, None, None),
+    "glo": DistSpec(lm3_distr.glo, scs.genlogistic, ("c", "loc", "scale")),
+    "gno": DistSpec(lm3_distr.gno, scs.gennorm, ("beta", "loc", "scale")),
+    "kap": DistSpec(lm3_distr.kap, scs.kappa4, ("h", "k", "loc", "scale")),
 }
 
 
@@ -65,16 +65,16 @@ def get_spec(dist_type: str) -> DistSpec:
 def fit(spec: DistSpec, data, fit_type: str, **kwargs):
     """Fit data and return (distribution, params) where params is a dict of
     named parameters accepted by distribution.cdf/.pdf/.ppf."""
-    if fit_type == 'lmom':
+    if fit_type == "lmom":
         if spec.lmom_dist is None:
             raise ValueError("This distribution does not support L-moments fitting")
         return spec.lmom_dist, spec.lmom_dist.lmom_fit(data, **kwargs)
 
-    if fit_type == 'mle':
+    if fit_type == "mle":
         if spec.mle_dist is None:
             raise ValueError("This distribution supports L-moments fitting only")
         params = spec.mle_dist.fit(data, **kwargs)
-        return spec.mle_dist, dict(zip(spec.mle_param_names, params))
+        return spec.mle_dist, dict(zip(spec.mle_param_names, params, strict=True))
 
     raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
@@ -83,6 +83,6 @@ def min_samples(spec: DistSpec, fit_type: str) -> int:
     """Smallest sample size for which fitting is attempted; below this the
     caller should yield NaN rather than fit. lmoments3 requires strictly more
     than numargs + 2 observations."""
-    if fit_type == 'lmom' and spec.lmom_dist is not None:
+    if fit_type == "lmom" and spec.lmom_dist is not None:
         return max(4, spec.lmom_dist.numargs + 3)
     return 4

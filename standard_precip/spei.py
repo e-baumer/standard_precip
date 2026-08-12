@@ -2,7 +2,7 @@ from standard_precip.base_sp import BaseStandardIndex
 
 
 class SPEI(BaseStandardIndex):
-    '''
+    """
     Calculate the Standardized Precipitation Evapotranspiration Index (SPEI).
 
     SPEI is computed exactly like SPI, but on the climatic water balance
@@ -24,4 +24,4 @@ class SPEI(BaseStandardIndex):
     Reference: Vicente-Serrano, S.M., Begueria, S., Lopez-Moreno, J.I. (2010).
     A Multiscalar Drought Index Sensitive to Global Warming: The Standardized
     Precipitation Evapotranspiration Index. Journal of Climate, 23(7).
-    '''
+    """

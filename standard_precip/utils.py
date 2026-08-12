@@ -5,9 +5,15 @@ import pandas as pd
 from standard_precip import _distributions
 
 
-def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str | None = None,
-               index_type: str = 'SPI', bin_width: int = 22):
-    '''
+def plot_index(
+    df: pd.DataFrame,
+    date_col: str,
+    precip_col: str,
+    save_file: str | None = None,
+    index_type: str = "SPI",
+    bin_width: int = 22,
+):
+    """
     Plot a calculated index as a bar chart, with positive (wet) values in blue and
     negative (dry) values in red.
 
@@ -34,13 +40,13 @@ def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str 
     Returns
     -------
     fig: matplotlib.figure.Figure
-    '''
+    """
     pos_index = df.loc[df[precip_col] >= 0]
     neg_index = df.loc[df[precip_col] < 0]
 
     fig, ax = plt.subplots()
-    ax.bar(pos_index[date_col], pos_index[precip_col], width=bin_width, align='center', color='b')
-    ax.bar(neg_index[date_col], neg_index[precip_col], width=bin_width, align='center', color='r')
+    ax.bar(pos_index[date_col], pos_index[precip_col], width=bin_width, align="center", color="b")
+    ax.bar(neg_index[date_col], neg_index[precip_col], width=bin_width, align="center", color="r")
     ax.grid(True)
     ax.set_xlabel("Date")
     ax.set_ylabel(index_type)
@@ -50,9 +56,16 @@ def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str 
 
     return fig
 
-def best_fit_distribution(data: np.ndarray, dist_list: list, fit_type: str = 'lmom',
-                          bins: int = 10, save_file: str | None = None, **kwargs):
-    '''
+
+def best_fit_distribution(
+    data: np.ndarray,
+    dist_list: list,
+    fit_type: str = "lmom",
+    bins: int = 10,
+    save_file: str | None = None,
+    **kwargs,
+):
+    """
     Method to find the best distribution for observational data. Calculates the Sum of the
     Squares error between fitted distribution and pdf.
     Inspired by: http://stackoverflow.com/questions/6620471/fitting-empirical-distribution-to-theoretical-ones-with-scipy-python
@@ -97,20 +110,20 @@ def best_fit_distribution(data: np.ndarray, dist_list: list, fit_type: str = 'lm
     -------
     sse: dict (key - distribution, value - sum of square error)
         The sum of the squares error between fitted distribution and pdf.
-    '''
+    """
     y, x = np.histogram(data, bins=bins, density=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
     sse = {}
     fig, ax = plt.subplots()
-    ax.bar(x, y, width=0.5, align='center', color='b', alpha=0.5, label='data')
+    ax.bar(x, y, width=0.5, align="center", color="b", alpha=0.5, label="data")
 
     for dist_name in dist_list:
         spec = _distributions.get_spec(dist_name)
         distrb, params = _distributions.fit(spec, data, fit_type, **kwargs)
 
         pdf = distrb.pdf(x, **params)
-        sse[dist_name] = np.sum((y - pdf)**2)
+        sse[dist_name] = np.sum((y - pdf) ** 2)
         ax.plot(x, pdf, label=dist_name)
 
     ax.legend()
@@ -123,4 +136,3 @@ def best_fit_distribution(data: np.ndarray, dist_list: list, fit_type: str = 'lm
 
     sse = sorted(sse.items(), key=lambda x: x[1], reverse=False)
     return sse
-

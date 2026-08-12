@@ -11,16 +11,24 @@ class TestBaselinePeriod:
     def test_full_record_baseline_equals_default(self, monthly_df):
         default = SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M")
         explicit = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            baseline_start=1893, baseline_end=2020,
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            baseline_start=1893,
+            baseline_end=2020,
         )
         np.testing.assert_allclose(default[INDEX_COL].values, explicit[INDEX_COL].values)
 
     def test_baseline_subset_changes_index(self, monthly_df):
         default = SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M")
         baseline = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            baseline_start=1961, baseline_end=1990,
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            baseline_start=1961,
+            baseline_end=1990,
         )
         # The full record is transformed in both cases...
         assert baseline[INDEX_COL].notna().sum() == default[INDEX_COL].notna().sum()
@@ -31,8 +39,12 @@ class TestBaselinePeriod:
 
     def test_baseline_mean_is_zeroish_within_baseline(self, monthly_df):
         baseline = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            baseline_start=1961, baseline_end=1990,
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            baseline_start=1961,
+            baseline_end=1990,
         )
         dates = pd.to_datetime(baseline["date"])
         inside = baseline.loc[dates.dt.year.between(1961, 1990), INDEX_COL]
@@ -40,33 +52,47 @@ class TestBaselinePeriod:
 
     def test_string_bounds(self, monthly_df):
         by_year = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            baseline_start=1961, baseline_end=1990,
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            baseline_start=1961,
+            baseline_end=1990,
         )
         by_date = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            baseline_start="1961-01-01", baseline_end="1990-12-31",
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            baseline_start="1961-01-01",
+            baseline_end="1990-12-31",
         )
         np.testing.assert_allclose(by_year[INDEX_COL].values, by_date[INDEX_COL].values)
 
     def test_one_sided_baseline_raises(self, monthly_df):
         with pytest.raises(ValueError, match="together"):
-            SPI().calculate(
-                monthly_df, "date", "TotalPrecipitation", freq="M", baseline_start=1961
-            )
+            SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M", baseline_start=1961)
 
     def test_inverted_baseline_raises(self, monthly_df):
         with pytest.raises(ValueError, match="after"):
             SPI().calculate(
-                monthly_df, "date", "TotalPrecipitation", freq="M",
-                baseline_start=1990, baseline_end=1961,
+                monthly_df,
+                "date",
+                "TotalPrecipitation",
+                freq="M",
+                baseline_start=1990,
+                baseline_end=1961,
             )
 
     def test_empty_baseline_raises(self, monthly_df):
         with pytest.raises(ValueError, match="No observations"):
             SPI().calculate(
-                monthly_df, "date", "TotalPrecipitation", freq="M",
-                baseline_start=1700, baseline_end=1750,
+                monthly_df,
+                "date",
+                "TotalPrecipitation",
+                freq="M",
+                baseline_start=1700,
+                baseline_end=1750,
             )
 
 
@@ -95,9 +121,7 @@ class TestAnnualMode:
         by_freq = SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M")
         df = monthly_df.copy()
         df["month_group"] = pd.to_datetime(df["date"]).dt.month
-        by_col = SPI().calculate(
-            df, "date", "TotalPrecipitation", freq_col="month_group"
-        )
+        by_col = SPI().calculate(df, "date", "TotalPrecipitation", freq_col="month_group")
         np.testing.assert_allclose(by_freq[INDEX_COL].values, by_col[INDEX_COL].values)
 
     def test_missing_freq_col_raises(self, monthly_df):
@@ -108,8 +132,9 @@ class TestAnnualMode:
         df = monthly_df.copy()
         df["bad_group"] = "january"
         with pytest.raises(ValueError, match="integer column"):
-            SPI().calculate(monthly_df.assign(bad_group="x"), "date", "TotalPrecipitation",
-                            freq_col="bad_group")
+            SPI().calculate(
+                monthly_df.assign(bad_group="x"), "date", "TotalPrecipitation", freq_col="bad_group"
+            )
 
 
 class TestMultiColumn:
@@ -147,7 +172,11 @@ class TestReturnParams:
 
     def test_p_zero_none_for_unbounded_dist(self, monthly_df):
         _, df_params = SPI().calculate(
-            monthly_df, "date", "TotalPrecipitation", freq="M",
-            dist_type="nor", return_params=True,
+            monthly_df,
+            "date",
+            "TotalPrecipitation",
+            freq="M",
+            dist_type="nor",
+            return_params=True,
         )
         assert df_params["p_zero"].isna().all()

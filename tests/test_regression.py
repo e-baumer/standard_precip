@@ -24,6 +24,7 @@ def _load_golden():
         for (dist_type, fit_type), group in golden.groupby(["dist_type", "fit_type"])
     }
 
+
 GOLDEN = _load_golden()
 FIT_KWARGS = {("gam", "mle"): {"floc": 0}, ("wei", "mle"): {"floc": 0}}
 
