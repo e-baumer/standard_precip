@@ -99,6 +99,15 @@ class BaseStandardIndex():
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
 
+        # Unconstrained-loc gamma MLE on the remaining strictly positive data is
+        # ill-posed and produces wildly wrong index values for some series. After
+        # zero removal the support is (0, inf), so fix loc=0 unless the caller
+        # constrains it explicitly. Published SPI formulations all use a
+        # two-parameter gamma.
+        if dist_type == 'gam' and fit_type == 'mle' \
+                and not any(k in kwargs for k in ('floc', 'loc')):
+            kwargs = {**kwargs, 'floc': 0}
+
         min_samples = _distributions.min_samples(spec, fit_type)
 
         if (data.shape[0] < min_samples) or (p_zero is not None and np.isclose(p_zero, 1.0)):
