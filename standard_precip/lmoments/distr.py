@@ -95,12 +95,12 @@ class LmomDistrMixin(object):
         :rtype: list
         """
         if nmom > 20:
-            return ValueError("Parameter nmom too large. Max of 20.")
+            raise ValueError("Parameter nmom too large. Max of 20.")
 
         shapes, loc, scale = self._parse_args(*args, **kwds)
 
         if scale <= 0:
-            return ValueError("Invalid scale parameter.")
+            raise ValueError("Invalid scale parameter.")
 
         return self._lmom_ratios(*shapes, loc=loc, scale=scale, nmom=nmom)
 

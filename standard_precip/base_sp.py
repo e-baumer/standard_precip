@@ -1,9 +1,9 @@
+import warnings
 from functools import reduce
 
 import numpy as np
 import pandas as pd
 import scipy.stats as scs
-import matplotlib.pyplot as plt
 
 from standard_precip.lmoments import distr
 
@@ -27,21 +27,21 @@ class BaseStandardIndex():
     - PET or (P-PET) can take on negative values.
     '''
 
-    def __init__(self):
-        self.distrb = None
-        self.non_zero_distr = ['gam', 'pe3']
-        self._df_copy = None
-        self.freq_col = None
+    #: Distributions that are undefined at zero; zero observations are removed
+    #: before fitting and handled through the mixed CDF (Thom, 1966).
+    non_zero_distr = ['gam', 'pe3']
 
     @staticmethod
-    def rolling_window_sum(df: pd.DataFrame, precip_cols: list, span: int=1, window_type: str=None,
-                           center: bool=False, **kwargs):
+    def rolling_window_sum(df: pd.DataFrame, precip_cols: list, span: int = 1,
+                           window_type: str | None = None, center: bool = False, **kwargs):
         '''
         This is a helper method which will find the rolling sum of precipitation data.
+        Returns a new DataFrame; the input DataFrame is not modified.
         '''
+        df = df.copy()
         precip_cols_new = []
         for p in precip_cols:
-            new_col_name = p+f"_scale_{span}"
+            new_col_name = p + f"_scale_{span}"
             df[new_col_name] = df[p].rolling(
                 window=span, win_type=window_type, center=center, **kwargs
             ).sum()
@@ -56,12 +56,18 @@ class BaseStandardIndex():
         to the first date found is used.
         '''
         if df.duplicated(subset=date_col).any():
-            print("Found duplicate dates in dataframe. Removing duplicates and using first date found")
+            warnings.warn(
+                "Found duplicate dates in dataframe. Removing duplicates and using "
+                "first date found",
+                UserWarning,
+                stacklevel=3,
+            )
             df = df.drop_duplicates(subset=date_col)
 
         return df
 
-    def fit_distribution(self, data: np.array, dist_type: str, fit_type: str='lmom', **kwargs):
+    def fit_distribution(self, data: np.ndarray, dist_type: str, fit_type: str = 'lmom',
+                         **kwargs):
         '''
         Fit given distribution to historical precipitation data.
         The fit is accomplished using either L-moments or MLE (Maximum Likelihood Estimation).
@@ -70,10 +76,13 @@ class BaseStandardIndex():
         that have 0 precipitation values and fit using non-zero observations. Also find probability
         of zero observation (estimated by number of zero obs / total obs). This is for latter use
         in calculating the CDF using (Thom, 1966. Some Methods of Climatological Analysis)
+
+        Returns a tuple of (distribution, params, p_zero) where params is None when there is
+        not enough data to fit the distribution.
         '''
 
         # Get distribution type
-        self.distrb = getattr(distr, dist_type)
+        distrb = getattr(distr, dist_type)
 
         # Determine zeros if distribution can not handle x = 0
         p_zero = None
@@ -81,40 +90,48 @@ class BaseStandardIndex():
             p_zero = data[data == 0].shape[0] / data.shape[0]
             data = data[data != 0]
 
-        if (data.shape[0]<4) or (p_zero==1):
+        # lmom_fit requires strictly more than numargs + 2 observations
+        min_samples = max(4, distrb.numargs + 3)
+
+        if (data.shape[0] < min_samples) or (p_zero is not None and np.isclose(p_zero, 1.0)):
+            warnings.warn(
+                f"Insufficient data to fit '{dist_type}' distribution "
+                f"({data.shape[0]} non-zero observations, {min_samples} required); "
+                "returning NaN for this group.",
+                UserWarning,
+                stacklevel=3,
+            )
             params = None
 
         else:
             # Fit distribution
             if fit_type == 'lmom':
-                params = self.distrb.lmom_fit(data, **kwargs)
+                params = distrb.lmom_fit(data, **kwargs)
 
             elif fit_type == 'mle':
-                params = self.distrb.fit(data, **kwargs)
+                params = distrb.fit(data, **kwargs)
 
             else:
-                raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+                raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
-        return params, p_zero
+        return distrb, params, p_zero
 
-    def cdf_to_ppf(self, data, params, p_zero):
+    def cdf_to_ppf(self, data, distrb, params, p_zero):
         '''
         Take the specific distributions fitted parameters and calculate the
         cdf. Apply the inverse normal distribution to the cdf to get the SPI
         SPEI. This process is best described in Lloyd-Hughes and Saunders, 2002
         which is included in the documentation.
-
         '''
 
         # Calculate the CDF of observed precipitation on a given time scale
-        if not (p_zero is None):
-            if params:
-                cdf = p_zero + (1 - p_zero) * self.distrb.cdf(data, **params)
+        if params:
+            if p_zero is not None:
+                cdf = p_zero + (1 - p_zero) * distrb.cdf(data, **params)
             else:
-                cdf = np.empty(data.shape)
-                cdf.fill(np.nan)
+                cdf = distrb.cdf(data, **params)
         else:
-            cdf = self.distrb.cdf(data, **params)
+            cdf = np.full(np.shape(data), np.nan)
 
         # Apply inverse normal distribution
         norm_ppf = scs.norm.ppf(cdf)
@@ -122,9 +139,9 @@ class BaseStandardIndex():
 
         return norm_ppf
 
-    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str="M",
-                  scale: int=1, freq_col: str=None, fit_type: str='lmom', dist_type: str='gam',
-                  **dist_kwargs) -> pd.DataFrame:
+    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str = "M",
+                  scale: int = 1, freq_col: str | None = None, fit_type: str = 'lmom',
+                  dist_type: str = 'gam', **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
 
@@ -134,9 +151,9 @@ class BaseStandardIndex():
         Parameters
         ----------
         df: pd.Dataframe
-            Pandas dataframe with precipitation data as columns. Each column is treated as a seperate
-            set of observations and distributions are fit for individual columns. A date column should
-            also be given in the dataframe.
+            Pandas dataframe with precipitation data as columns. Each column is treated as a
+            separate set of observations and distributions are fit for individual columns. A date
+            column should also be given in the dataframe.
 
         date_col: str
             The column name for the date column. Date specification should follow the strftime format.
@@ -147,13 +164,13 @@ class BaseStandardIndex():
 
         freq: str ["M", "W", "D"]
             The temporal frequency to calculate the index on. The day of year ("D") or week of year
-            ("W") or month of year ("M") is derived from the date_col. If the user desires a custome
-            frequency such as 3-month, 6-month, they can pass the column name for the custome freqency
-            (freq_col)
+            ("W") or month of year ("M") is derived from the date_col. If the user desires a custom
+            frequency such as 3-month, 6-month, they can pass the column name for the custom
+            frequency (freq_col)
 
         freq_col: str (column type: int)
-            Name of the column that specifies a custome frequency. This overrides the freq parameter.
-            The freq_col should group individual observations (rows) according to the users custome
+            Name of the column that specifies a custom frequency. This overrides the freq parameter.
+            The freq_col should group individual observations (rows) according to the users custom
             frequency. The grouping is specified using integers.
 
         scale: int (default=1)
@@ -190,7 +207,7 @@ class BaseStandardIndex():
         Returns
         -------
         df: pd.Dataframe
-            Pandas dataframe with the calculated indicies for each precipitation column appended
+            Pandas dataframe with the calculated indices for each precipitation column appended
             to the original dataframe.
         '''
 
@@ -202,51 +219,54 @@ class BaseStandardIndex():
         if scale > 1:
             df, precip_cols = self.rolling_window_sum(df, precip_cols, scale)
 
-        self._df_copy = df[[date_col] + precip_cols].copy()
-        self._df_copy[date_col] = pd.to_datetime(self._df_copy[date_col])
+        keep_cols = [date_col] + precip_cols
+        if freq_col is not None:
+            if freq_col not in df.columns:
+                raise ValueError(f"freq_col '{freq_col}' is not a column of the dataframe")
+            keep_cols.append(freq_col)
+        df_copy = df[keep_cols].copy()
+        df_copy[date_col] = pd.to_datetime(df_copy[date_col])
 
-        if freq_col:
-            self.freq_col = freq_col
-        else:
-            self.freq_col = 'freq'
+        if freq_col is None:
+            freq_col = 'freq'
 
             if freq == "D":
-                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.dayofyear
+                df_copy[freq_col] = df_copy[date_col].dt.dayofyear
             elif freq == "W":
-                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.week
+                df_copy[freq_col] = df_copy[date_col].dt.isocalendar().week.astype(int)
             elif freq == "M":
-                self._df_copy[self.freq_col] = self._df_copy[date_col].dt.month
+                df_copy[freq_col] = df_copy[date_col].dt.month
             else:
-                raise AttributeError(f"{freq} is not a recognized frequency. Options are 'M', 'W', or 'D'")
+                raise ValueError(
+                    f"{freq} is not a recognized frequency. Options are 'M', 'W', or 'D'"
+                )
 
-        freq_range = self._df_copy[self.freq_col].unique().tolist()
-        # Loop over months
+        freq_range = df_copy[freq_col].unique().tolist()
+        # Loop over the frequency groups (e.g. months of the year)
         dfs = []
         for p in precip_cols:
-            dfs_p = pd.DataFrame()
+            dfs_p = []
             for j in freq_range:
-                precip_all = self._df_copy.loc[self._df_copy[self.freq_col]==j]
+                precip_all = df_copy.loc[df_copy[freq_col] == j]
                 precip_single_df = precip_all.dropna().copy()
                 precip_single = precip_single_df[p].values
-                precip_sorted = np.sort(precip_single)[::-1]
 
-                # Fit distribution for particular series and month
-                params, p_zero = self.fit_distribution(
-                    precip_sorted, dist_type, fit_type, **dist_kwargs
+                # Fit distribution for particular series and frequency group
+                distrb, params, p_zero = self.fit_distribution(
+                    precip_single, dist_type, fit_type, **dist_kwargs
                 )
 
                 # Calculate SPI/SPEI
-                spi = self.cdf_to_ppf(precip_single, params, p_zero)
+                spi = self.cdf_to_ppf(precip_single, distrb, params, p_zero)
                 idx_col = f"{p}_calculated_index"
                 precip_single_df[idx_col] = spi
-                precip_single_df = precip_single_df[[date_col, idx_col]]
-                dfs_p = pd.concat([dfs_p, precip_single_df])
-                dfs_p = dfs_p.sort_values(date_col)
-            dfs.append(dfs_p)
+                dfs_p.append(precip_single_df[[date_col, idx_col]])
+            dfs.append(pd.concat(dfs_p).sort_values(date_col))
 
         df_all = reduce(
-            lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, self._df_copy
+            lambda left, right: pd.merge(left, right, on=date_col, how='left'), dfs, df_copy
         )
-        df_all = df_all.drop(columns=self.freq_col)
+        if freq_col == 'freq':
+            df_all = df_all.drop(columns=freq_col)
 
         return df_all

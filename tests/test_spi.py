@@ -29,7 +29,12 @@ GOLDEN_MONTHLY = [
         "pe3", "mle", {}, 0, -0.670490, marks=pytest.mark.xfail(raises=RecursionError)
     ),
     ("wei", "lmom", {}, 0, -0.624138),
-    ("wei", "mle", {}, 0, -0.625167),
+    # Unconstrained 3-parameter Weibull MLE is ill-posed: scipy >= ~1.12 converges to a
+    # degenerate fit (loc above the data minimum) so the historical golden value
+    # (-0.625167) is no longer reproducible. Constraining floc=0 - appropriate for
+    # precipitation, and what the gam MLE test already does - is stable across scipy
+    # versions.
+    ("wei", "mle", {"floc": 0}, 0, -0.638047),
     ("glo", "mle", {}, 0, -0.721554),
     ("gno", "mle", {}, 0, -0.655203),
     ("kap", "mle", {}, 0, -0.312152),
@@ -62,6 +67,23 @@ def test_3month_spi(wichita_df):
         wichita_df, "date", "precip", freq="M", fit_type="lmom", scale=3, dist_type="gam"
     )
     assert df_spi["precip_scale_3_calculated_index"].iloc[2] == pytest.approx(0.856479, abs=1e-4)
+
+
+def test_calculate_does_not_mutate_input(wichita_df):
+    original_cols = list(wichita_df.columns)
+    original_values = wichita_df.copy()
+    spi.SPI().calculate(
+        wichita_df, "date", "precip", freq="M", fit_type="lmom", scale=3, dist_type="gam"
+    )
+    assert list(wichita_df.columns) == original_cols
+    assert wichita_df.equals(original_values)
+
+
+def test_weekly_freq(wichita_df):
+    df_spi = spi.SPI().calculate(
+        wichita_df, "date", "precip", freq="W", fit_type="lmom", dist_type="gam"
+    )
+    assert df_spi["precip_calculated_index"].notna().sum() > 0
 
 
 def test_daily_nan(daily_test_df):

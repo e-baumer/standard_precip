@@ -1,11 +1,40 @@
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
+
+from standard_precip.lmoments import distr
 
 
-def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str=None,
-               index_type: str='SPI', bin_width: int=22):
+def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str | None = None,
+               index_type: str = 'SPI', bin_width: int = 22):
+    '''
+    Plot a calculated index as a bar chart, with positive (wet) values in blue and
+    negative (dry) values in red.
 
+    Parameters
+    ----------
+    df: pd.DataFrame
+        Dataframe returned by calculate(), containing the date and index columns.
+
+    date_col: str
+        Name of the date column.
+
+    precip_col: str
+        Name of the calculated index column to plot (e.g. 'precip_calculated_index').
+
+    save_file: str, optional
+        File path to save the figure. If not given, the figure is only returned.
+
+    index_type: str (default='SPI')
+        Label for the y-axis.
+
+    bin_width: int (default=22)
+        Bar width in days. The default suits monthly data; use ~1 for daily data.
+
+    Returns
+    -------
+    fig: matplotlib.figure.Figure
+    '''
     pos_index = df.loc[df[precip_col] >= 0]
     neg_index = df.loc[df[precip_col] < 0]
 
@@ -21,8 +50,8 @@ def plot_index(df: pd.DataFrame, date_col: str, precip_col: str, save_file: str=
 
     return fig
 
-def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom', bins: int=10,
-                          save_file: str=None, **kwargs):
+def best_fit_distribution(data: np.ndarray, dist_list: list, fit_type: str = 'lmom',
+                          bins: int = 10, save_file: str | None = None, **kwargs):
     '''
     Method to find the best distribution for observational data. Calculates the Sum of the
     Squares error between fitted distribution and pdf.
@@ -69,7 +98,7 @@ def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
     sse: dict (key - distribution, value - sum of square error)
         The sum of the squares error between fitted distribution and pdf.
     '''
-    y, x = np.histogram(data, bins=bins, normed=True)
+    y, x = np.histogram(data, bins=bins, density=True)
     x = (x + np.roll(x, -1))[:-1] / 2.0
 
     sse = {}
@@ -86,7 +115,7 @@ def best_fit_distribution(data: np.array, dist_list: list, fit_type: str='lmom',
             params = distrb.fit(data, **kwargs)
 
         else:
-            raise AttributeError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
+            raise ValueError(f"{fit_type} is not an option. Option fit_types are mle and lmom")
 
         pdf = distrb.pdf(x, **params)
         sse[dist_name] = np.sum((y - pdf)**2)

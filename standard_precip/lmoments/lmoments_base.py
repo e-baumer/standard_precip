@@ -69,9 +69,9 @@ def lmom_ratios_fn(data, nmom=5):
 
 def _samlmularge(x, nmom=5):
     try:
-        x = np.asarray(x, dtype=np.float64)
+        # np.sort returns a copy; sorting in place would mutate the caller's array
+        x = np.sort(np.asarray(x, dtype=np.float64))
         n = len(x)
-        x.sort()
     except ValueError:
         raise ValueError("Input data to estimate L-moments must be numeric.")
 
@@ -125,9 +125,9 @@ def _samlmularge(x, nmom=5):
 
 def _samlmusmall(x, nmom=5):
     try:
-        x = np.asarray(x, dtype=np.float64)
+        # np.sort returns a copy; sorting in place would mutate the caller's array
+        x = np.sort(np.asarray(x, dtype=np.float64))
         n = len(x)
-        x.sort()
     except ValueError:
         raise ValueError("Input data to estimate L-moments must be numeric.")
 
