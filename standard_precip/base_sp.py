@@ -149,9 +149,21 @@ class BaseStandardIndex():
 
         return norm_ppf
 
+    @staticmethod
+    def _baseline_timestamp(value, end: bool):
+        '''Normalize a baseline bound to a pd.Timestamp. Integers are treated as
+        years: the start of the year for the lower bound, the end of the year
+        for the upper bound (both inclusive).'''
+        if isinstance(value, int):
+            if end:
+                return pd.Timestamp(year=value, month=12, day=31, hour=23, minute=59, second=59)
+            return pd.Timestamp(year=value, month=1, day=1)
+        return pd.Timestamp(value)
+
     def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str = "M",
                   scale: int = 1, freq_col: str | None = None, fit_type: str = 'lmom',
-                  dist_type: str = 'gam', **dist_kwargs) -> pd.DataFrame:
+                  dist_type: str = 'gam', baseline_start=None, baseline_end=None,
+                  return_params: bool = False, **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
 
@@ -211,6 +223,21 @@ class BaseStandardIndex():
             The distribution type to fit using ONLY L-moments
                 'wak' - Wakeby
 
+        baseline_start, baseline_end: int, str or pd.Timestamp, optional
+            Reference (baseline) period over which the distributions are fit; the fitted
+            distributions (and the probability of zero precipitation) are then used to
+            transform the entire record. Integers are interpreted as years, inclusive on
+            both ends (e.g. baseline_start=1961, baseline_end=1990); strings and Timestamps
+            are interpreted as dates. Both bounds must be given together. This is the usual
+            setup for climate-projection work: fit on a historical baseline, apply to the
+            projected record. By default the full record is used for fitting.
+
+        return_params: bool (default=False)
+            If True, additionally return a dataframe of the fitted distribution parameters,
+            with one row per (precipitation column, frequency group): the number of
+            observations used in the fit, the probability of zero precipitation (for
+            distributions where zeros are removed before fitting) and the fitted parameters.
+
         dist_kwargs:
             scale and location parameters. See documentation on scipy.stats.rv_continuous.fit
 
@@ -218,7 +245,8 @@ class BaseStandardIndex():
         -------
         df: pd.Dataframe
             Pandas dataframe with the calculated indices for each precipitation column appended
-            to the original dataframe.
+            to the original dataframe. If return_params is True, a tuple of
+            (df, params_dataframe) is returned instead.
         '''
 
         # Check for duplicate dates
@@ -228,6 +256,9 @@ class BaseStandardIndex():
 
         if scale > 1:
             df, precip_cols = self.rolling_window_sum(df, precip_cols, scale)
+
+        if (baseline_start is None) != (baseline_end is None):
+            raise ValueError("baseline_start and baseline_end must be given together")
 
         keep_cols = [date_col] + precip_cols
         if freq_col is not None:
@@ -251,9 +282,24 @@ class BaseStandardIndex():
                     f"{freq} is not a recognized frequency. Options are 'M', 'W', or 'D'"
                 )
 
+        baseline_mask = None
+        if baseline_start is not None:
+            start_ts = self._baseline_timestamp(baseline_start, end=False)
+            end_ts = self._baseline_timestamp(baseline_end, end=True)
+            if start_ts > end_ts:
+                raise ValueError(
+                    f"baseline_start ({start_ts}) is after baseline_end ({end_ts})"
+                )
+            baseline_mask = df_copy[date_col].between(start_ts, end_ts)
+            if not baseline_mask.any():
+                raise ValueError(
+                    f"No observations fall within the baseline period {start_ts} - {end_ts}"
+                )
+
         freq_range = df_copy[freq_col].unique().tolist()
         # Loop over the frequency groups (e.g. months of the year)
         dfs = []
+        params_rows = []
         for p in precip_cols:
             dfs_p = []
             for j in freq_range:
@@ -261,10 +307,31 @@ class BaseStandardIndex():
                 precip_single_df = precip_all.dropna().copy()
                 precip_single = precip_single_df[p].values
 
-                # Fit distribution for particular series and frequency group
+                # Fit distribution for particular series and frequency group. With a
+                # baseline period, the distribution (and p_zero) is fit on the baseline
+                # observations only, then applied to the whole group.
+                if baseline_mask is not None:
+                    fit_values = precip_single_df.loc[
+                        baseline_mask.loc[precip_single_df.index], p
+                    ].values
+                else:
+                    fit_values = precip_single
                 distrb, params, p_zero = self.fit_distribution(
-                    precip_single, dist_type, fit_type, **dist_kwargs
+                    fit_values, dist_type, fit_type, **dist_kwargs
                 )
+
+                if return_params:
+                    row = {
+                        'column': p,
+                        'freq_group': j,
+                        'dist_type': dist_type,
+                        'fit_type': fit_type,
+                        'n_fit': fit_values.shape[0],
+                        'p_zero': p_zero,
+                    }
+                    if params:
+                        row.update(params)
+                    params_rows.append(row)
 
                 # Calculate SPI/SPEI
                 spi = self.cdf_to_ppf(precip_single, distrb, params, p_zero)
@@ -278,5 +345,11 @@ class BaseStandardIndex():
         )
         if freq_col == 'freq':
             df_all = df_all.drop(columns=freq_col)
+
+        if return_params:
+            df_params = pd.DataFrame(params_rows).sort_values(
+                ['column', 'freq_group']
+            ).reset_index(drop=True)
+            return df_all, df_params
 
         return df_all
