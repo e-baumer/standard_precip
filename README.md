@@ -73,17 +73,11 @@ import pandas as pd
 from standard_precip import SPI
 from standard_precip.utils import plot_index
 
-rainfall_data = pd.read_csv('data/monthly_data.csv')
+rainfall_data = pd.read_csv("data/monthly_data.csv")
 
 spi = SPI()
 df_spi = spi.calculate(
-    rainfall_data,
-    'date',
-    'TotalPrecipitation',
-    freq="M",
-    scale=1,
-    fit_type="lmom",
-    dist_type="gam"
+    rainfall_data, "date", "TotalPrecipitation", freq="M", scale=1, fit_type="lmom", dist_type="gam"
 )
 ```
 
@@ -94,7 +88,7 @@ of column names to process several series at once.
 Plotting:
 
 ```python
-fig = plot_index(df_spi, 'date', 'TotalPrecipitation_calculated_index')
+fig = plot_index(df_spi, "date", "TotalPrecipitation_calculated_index")
 ```
 
 ### Baseline (reference) period
@@ -104,8 +98,11 @@ apply them to the full record:
 
 ```python
 df_spi = spi.calculate(
-    rainfall_data, 'date', 'TotalPrecipitation',
-    baseline_start=1961, baseline_end=1990   # ints = years; dates work too
+    rainfall_data,
+    "date",
+    "TotalPrecipitation",
+    baseline_start=1961,
+    baseline_end=1990,  # ints = years; dates work too
 )
 ```
 
@@ -115,9 +112,7 @@ df_spi = spi.calculate(
 one row per (column, frequency group), including the probability of zero precipitation:
 
 ```python
-df_spi, df_params = spi.calculate(
-    rainfall_data, 'date', 'TotalPrecipitation', return_params=True
-)
+df_spi, df_params = spi.calculate(rainfall_data, "date", "TotalPrecipitation", return_params=True)
 ```
 
 ### Annual and custom frequencies
@@ -128,8 +123,8 @@ For annual totals there is no seasonal cycle to condition on — use `freq=None`
 distribution is fit to the whole series:
 
 ```python
-df_annual = df.resample('YE', on='date').sum().reset_index()
-df_spi = spi.calculate(df_annual, 'date', 'TotalPrecipitation', freq=None)
+df_annual = df.resample("YE", on="date").sum().reset_index()
+df_spi = spi.calculate(df_annual, "date", "TotalPrecipitation", freq=None)
 ```
 
 (Do not create a per-year grouping column for annual data: each year would end up alone in its
@@ -148,8 +143,8 @@ et al. (2010) recommend the generalized logistic distribution:
 ```python
 from standard_precip import SPEI
 
-df['wb'] = df['precip'] - df['pet']
-df_spei = SPEI().calculate(df, 'date', 'wb', dist_type='glo', fit_type='lmom')
+df["wb"] = df["precip"] - df["pet"]
+df_spei = SPEI().calculate(df, "date", "wb", dist_type="glo", fit_type="lmom")
 ```
 
 ## Notes
