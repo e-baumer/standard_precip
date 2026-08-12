@@ -3,7 +3,7 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-08-12
 
 ### Added
 - **Baseline (reference) period**: `calculate(..., baseline_start=1961, baseline_end=1990)` fits
