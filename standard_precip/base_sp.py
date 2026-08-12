@@ -160,10 +160,11 @@ class BaseStandardIndex():
             return pd.Timestamp(year=value, month=1, day=1)
         return pd.Timestamp(value)
 
-    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list, freq: str = "M",
-                  scale: int = 1, freq_col: str | None = None, fit_type: str = 'lmom',
-                  dist_type: str = 'gam', baseline_start=None, baseline_end=None,
-                  return_params: bool = False, **dist_kwargs) -> pd.DataFrame:
+    def calculate(self, df: pd.DataFrame, date_col: str, precip_cols: list,
+                  freq: str | None = "M", scale: int = 1, freq_col: str | None = None,
+                  fit_type: str = 'lmom', dist_type: str = 'gam', baseline_start=None,
+                  baseline_end=None, return_params: bool = False,
+                  **dist_kwargs) -> pd.DataFrame:
         '''
         Calculate the index.
 
@@ -184,10 +185,13 @@ class BaseStandardIndex():
             List of columns with precipitation data. Each column is treated as a separate set of
             observations.
 
-        freq: str ["M", "W", "D"]
+        freq: str or None ["M", "W", "D", None]
             The temporal frequency to calculate the index on. The day of year ("D") or week of year
-            ("W") or month of year ("M") is derived from the date_col. If the user desires a custom
-            frequency such as 3-month, 6-month, they can pass the column name for the custom
+            ("W") or month of year ("M") is derived from the date_col. Use freq=None when the data
+            has no seasonal cycle to condition on - most commonly annual totals - so that a single
+            distribution is fit to the entire column. Do NOT pass a per-year freq_col for annual
+            data: every year would end up alone in its own fitting group. If the user desires a
+            custom frequency such as 3-month, 6-month, they can pass the column name for the custom
             frequency (freq_col)
 
         freq_col: str (column type: int)
@@ -277,10 +281,18 @@ class BaseStandardIndex():
                 df_copy[freq_col] = df_copy[date_col].dt.isocalendar().week.astype(int)
             elif freq == "M":
                 df_copy[freq_col] = df_copy[date_col].dt.month
+            elif freq is None:
+                # No seasonal conditioning (e.g. annual totals): the whole series
+                # forms a single fitting population.
+                df_copy[freq_col] = 0
             else:
                 raise ValueError(
-                    f"{freq} is not a recognized frequency. Options are 'M', 'W', or 'D'"
+                    f"{freq} is not a recognized frequency. Options are 'M', 'W', 'D' or None"
                 )
+        elif not pd.api.types.is_integer_dtype(df_copy[freq_col]):
+            raise ValueError(
+                f"freq_col '{freq_col}' must be an integer column grouping the observations"
+            )
 
         baseline_mask = None
         if baseline_start is not None:

@@ -70,6 +70,60 @@ class TestBaselinePeriod:
             )
 
 
+class TestAnnualMode:
+    def test_annual_spi(self):
+        # 60 years of synthetic annual precipitation totals: with freq=None all
+        # years form one fitting population, so the index should be ~N(0, 1).
+        rng = np.random.default_rng(42)
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("1950-12-31", periods=60, freq="YE"),
+                "precip": rng.gamma(shape=20.0, scale=40.0, size=60),
+            }
+        )
+        out = SPI().calculate(df, "date", "precip", freq=None)
+        idx = out["precip_calculated_index"]
+        assert idx.notna().all()
+        assert abs(idx.mean()) < 0.15
+        assert 0.8 < idx.std() < 1.2
+
+    def test_invalid_freq_raises(self, monthly_df):
+        with pytest.raises(ValueError, match="not a recognized frequency"):
+            SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="Y")
+
+    def test_freq_col_equivalent_to_month(self, monthly_df):
+        by_freq = SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq="M")
+        df = monthly_df.copy()
+        df["month_group"] = pd.to_datetime(df["date"]).dt.month
+        by_col = SPI().calculate(
+            df, "date", "TotalPrecipitation", freq_col="month_group"
+        )
+        np.testing.assert_allclose(by_freq[INDEX_COL].values, by_col[INDEX_COL].values)
+
+    def test_missing_freq_col_raises(self, monthly_df):
+        with pytest.raises(ValueError, match="not a column"):
+            SPI().calculate(monthly_df, "date", "TotalPrecipitation", freq_col="nope")
+
+    def test_non_integer_freq_col_raises(self, monthly_df):
+        df = monthly_df.copy()
+        df["bad_group"] = "january"
+        with pytest.raises(ValueError, match="integer column"):
+            SPI().calculate(monthly_df.assign(bad_group="x"), "date", "TotalPrecipitation",
+                            freq_col="bad_group")
+
+
+class TestMultiColumn:
+    def test_two_columns(self, monthly_df):
+        df = monthly_df.copy()
+        rng = np.random.default_rng(7)
+        df["precip2"] = df["TotalPrecipitation"] * rng.uniform(0.5, 1.5, len(df))
+        out = SPI().calculate(df, "date", ["TotalPrecipitation", "precip2"], freq="M")
+        assert INDEX_COL in out.columns
+        assert "precip2_calculated_index" in out.columns
+        single = SPI().calculate(df, "date", "TotalPrecipitation", freq="M")
+        np.testing.assert_allclose(out[INDEX_COL].values, single[INDEX_COL].values)
+
+
 class TestReturnParams:
     def test_shape_and_columns(self, monthly_df):
         df_spi, df_params = SPI().calculate(
