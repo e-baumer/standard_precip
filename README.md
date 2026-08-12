@@ -34,6 +34,8 @@ Requires Python 3.10+.
 pip install standard-precip
 ```
 
+> **Note**: PyPI currently hosts version 1.0; until 2.0.0 lands there, install the latest release with `pip install git+https://github.com/e-baumer/standard_precip@v2.0.0`.
+
 or with [uv](https://docs.astral.sh/uv/):
 
 ```
