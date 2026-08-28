@@ -162,10 +162,12 @@ from standard_precip import SPI
 ds = xr.open_dataset("precip.nc")
 dates = pd.to_datetime(ds["time"].values)
 
+
 def spi_1d(values, dates):
     df = pd.DataFrame({"date": dates, "p": values})
     out = SPI().calculate(df, "date", "p", freq="M")
     return out["p_calculated_index"].to_numpy()
+
 
 spi = xr.apply_ufunc(
     spi_1d,
