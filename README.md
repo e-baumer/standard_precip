@@ -149,6 +149,39 @@ df["wb"] = df["precip"] - df["pet"]
 df_spei = SPEI().calculate(df, "date", "wb", dist_type="glo", fit_type="lmom")
 ```
 
+### Gridded data (NetCDF / xarray)
+
+The package operates on one time series at a time, but it composes cleanly with
+`xr.apply_ufunc` to compute SPI per grid cell:
+
+```python
+import pandas as pd
+import xarray as xr
+from standard_precip import SPI
+
+ds = xr.open_dataset("precip.nc")
+dates = pd.to_datetime(ds["time"].values)
+
+def spi_1d(values, dates):
+    df = pd.DataFrame({"date": dates, "p": values})
+    out = SPI().calculate(df, "date", "p", freq="M")
+    return out["p_calculated_index"].to_numpy()
+
+spi = xr.apply_ufunc(
+    spi_1d,
+    ds["precip"],
+    kwargs={"dates": dates},
+    input_core_dims=[["time"]],
+    output_core_dims=[["time"]],
+    vectorize=True,
+)
+```
+
+For large grids, chunk the dataset over the spatial dimensions (never over `time`) and add
+`dask="parallelized", output_dtypes=[float]` to the `apply_ufunc` call to process cells in
+parallel. One distribution is fit per cell per frequency group, so expect roughly the
+single-series cost multiplied by the number of grid cells.
+
 ## Notes
 
 1. Although the user is allowed to select the distribution they wish to fit, one should be aware
