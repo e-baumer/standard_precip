@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "standard-precip"
-version = "2.0.1"
+version = "2.1.0"
 description = "Calculate the Standardized Precipitation Index (SPI) and Standardized Precipitation Evapotranspiration Index (SPEI)"
 readme = "README.md"
 license = "Apache-2.0"
