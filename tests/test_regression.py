@@ -5,9 +5,12 @@ regression_golden.csv pins the full calculated-index series for every supported
 reproduces it to near machine precision. The file was originally generated
 (tests/gen_golden.py) against the vendored l-moments code just before the
 migration to the external lmoments3 package, proving equivalence across that
-swap, and has been regenerated once since: out-of-support observations now map
+swap, and has been regenerated twice since. Out-of-support observations now map
 to large finite index values instead of NaN (CDF clipped at 1e-16), a change
-that affected only previously-NaN cells.
+that affected only previously-NaN cells. The wak/lmom rows were then replaced
+when the Wakeby CDF moved from lmoments3, whose implementation is wrong for
+fitted parameters, to standard_precip/_wakeby.py; no other combination changed
+(details in tests/gen_golden.py).
 
 A failure here means the numerical output of the package changed. Never accept
 that silently: regenerating the golden is legitimate only for an intentional,
