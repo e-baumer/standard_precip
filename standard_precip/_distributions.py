@@ -13,6 +13,10 @@ generalized normal and kappa distributions, while MLE uses scipy's
 genlogistic, gennorm and kappa4. Parameters from one are not interchangeable
 with the other. The CDF is always evaluated with the same distribution object
 that produced the parameters, so results are internally consistent.
+
+'wak' is the one L-moment distribution not evaluated by lmoments3: its Wakeby
+CDF is wrong for fitted parameters (see _wakeby), so the registry points at
+the local implementation, which still delegates the fit itself to lmoments3.
 """
 
 from dataclasses import dataclass, field
@@ -20,6 +24,8 @@ from types import MappingProxyType
 
 import scipy.stats as scs
 from lmoments3 import distr as lm3_distr
+
+from standard_precip import _wakeby
 
 
 @dataclass(frozen=True)
@@ -60,7 +66,7 @@ DISTRIBUTIONS: dict[str, DistSpec] = {
     "nor": DistSpec(lm3_distr.nor, scs.norm, ("loc", "scale")),
     "pe3": DistSpec(lm3_distr.pe3, scs.pearson3, ("skew", "loc", "scale"), strip_zeros=True),
     "wei": DistSpec(lm3_distr.wei, scs.weibull_min, ("c", "loc", "scale")),
-    "wak": DistSpec(lm3_distr.wak, None, None),
+    "wak": DistSpec(_wakeby.wak, None, None),
     "glo": DistSpec(lm3_distr.glo, scs.genlogistic, ("c", "loc", "scale")),
     "gno": DistSpec(lm3_distr.gno, scs.gennorm, ("beta", "loc", "scale")),
     "kap": DistSpec(lm3_distr.kap, scs.kappa4, ("h", "k", "loc", "scale")),

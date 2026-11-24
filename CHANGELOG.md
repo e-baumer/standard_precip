@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **Wakeby (`dist_type="wak"`) gave NaN or wrong index values** (#35). The index was computed
+  with the Wakeby CDF of lmoments3, which is wrong for fitted parameters in lmoments3 ≤ 1.0.8
+  (Ouranosinc/lmoments3#34): it scales `gamma` by `alpha` a second time, and it returns NaN
+  for every fit with `delta < 0` or `alpha = 0`. On the bundled monthly record 9 of 12 calendar
+  months were entirely NaN and the rest were off by up to about 2 index units. The CDF is now
+  evaluated by a local implementation that inverts Hosking's quantile function; the L-moment
+  fit itself was already correct and still comes from lmoments3. **All `wak` results change.**
+  No other distribution is affected.
 - **pandas ≥ 3.1**: `calculate()` no longer emits `Pandas4Warning` deprecation notices
   (`Series.dt.dayofyear` is now `day_of_year`, and the `infer_freq` return-type notice is
   suppressed where only the presence of a frequency is checked). Results are unchanged.

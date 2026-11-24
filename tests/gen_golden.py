@@ -5,10 +5,20 @@ This script pins the full calculated-index series for every supported
 run against the vendored l-moments code immediately before the migration to the
 external lmoments3 package, proving numerical equivalence across that swap.
 
-Regenerated once since: observations outside the support of the fitted
-distribution now map to large finite index values (CDF clipped at 1e-16)
-instead of NaN. That change affected only cells that were previously NaN;
-every previously finite value is unchanged.
+Regenerated twice since.
+
+First, observations outside the support of the fitted distribution now map to
+large finite index values (CDF clipped at 1e-16) instead of NaN. That change
+affected only cells that were previously NaN; every previously finite value is
+unchanged.
+
+Second (2026-11-24), the Wakeby CDF moved from lmoments3 to the local
+implementation in standard_precip/_wakeby.py, because lmoments3 1.0.8 scales
+gamma by alpha twice and returns NaN for fits with delta < 0. That change
+affected only the wak/lmom rows: 1152 of 1536 went from NaN to finite, 378
+previously finite values shifted by up to 2.2 index units, and the 6 values
+already at the lower clip stayed there. Every row of every other combination
+is identical.
 
 Rerun only when a numerical behavior change is intended:
 
