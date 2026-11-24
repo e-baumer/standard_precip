@@ -26,7 +26,7 @@ packages use, and MLE can be unstable for some distributions and datasets. Indic
 calculated on daily, weekly, monthly, annual or any custom time grouping, at any scale
 (e.g. 3-month, 6-month), and optionally against a fixed baseline (reference) period.
 
-Requires Python 3.10+.
+Requires Python 3.11+.
 
 ## Installation
 

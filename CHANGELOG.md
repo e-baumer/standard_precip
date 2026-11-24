@@ -3,6 +3,14 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- **Python ≥ 3.11 required.** Python 3.10 reached end of life in October 2026 and is no longer
+  supported or tested. Its last compatible Pillow release (12.3.0, a matplotlib dependency)
+  has unpatched security advisories that are fixed only in Pillow 13, which needs Python 3.11.
+  Users on Python 3.10 can stay on standard-precip 2.0.1.
+
 ## [2.0.1] - 2026-11-24
 
 ### Fixed
