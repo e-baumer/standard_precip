@@ -176,6 +176,19 @@ class TestRobustness:
         SPI().calculate(df, "date", "p", scale=3)
         assert not [w for w in recwarn if "not regularly spaced" in str(w.message)]
 
+    @pytest.mark.parametrize("freq, pd_freq", [("M", "MS"), ("D", "D")])
+    def test_no_deprecation_warnings(self, freq, pd_freq, recwarn):
+        """Guards the pandas calls that 3.1 started deprecating ahead of 4.0:
+        ``Series.dt.dayofyear`` and the string return of ``infer_freq``."""
+        rng = np.random.default_rng(6)
+        dates = pd.date_range("2000-01-01", periods=1500, freq=pd_freq)
+        df = pd.DataFrame({"date": dates, "p": rng.gamma(2, 3, len(dates))})
+        SPI().calculate(df, "date", "p", freq=freq, scale=3)
+        deprecations = [
+            w for w in recwarn if issubclass(w.category, (DeprecationWarning, FutureWarning))
+        ]
+        assert not [str(w.message) for w in deprecations]
+
     def test_nan_in_one_column_does_not_affect_other(self):
         rng = np.random.default_rng(1)
         df = pd.DataFrame(

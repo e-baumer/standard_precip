@@ -3,6 +3,13 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- **pandas ≥ 3.1**: `calculate()` no longer emits `Pandas4Warning` deprecation notices
+  (`Series.dt.dayofyear` is now `day_of_year`, and the `infer_freq` return-type notice is
+  suppressed where only the presence of a frequency is checked). Results are unchanged.
+
 ## [2.0.0] - 2026-08-12
 
 ### Added

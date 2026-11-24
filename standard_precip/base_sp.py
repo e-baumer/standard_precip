@@ -149,10 +149,18 @@ class BaseStandardIndex:
     def _warn_irregular_spacing(dates, date_col):
         """Warn when dates are not regularly spaced. The rolling window used for
         scale > 1 sums consecutive rows, so a gap in the record makes the window
-        silently span non-adjacent periods."""
+        silently span non-adjacent periods.
+
+        Only whether a frequency can be inferred matters here, never its type,
+        so the pandas 3.1 deprecation notice about ``infer_freq`` returning an
+        offset object instead of a string in pandas 4 is suppressed for this
+        one call (verified against pandas 2.2.0 and 3.1.1, 2026-11)."""
         if len(dates) < 3:
             return
-        if pd.infer_freq(pd.DatetimeIndex(dates)) is None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*infer_freq", category=DeprecationWarning)
+            inferred = pd.infer_freq(pd.DatetimeIndex(dates))
+        if inferred is None:
             warnings.warn(
                 f"Dates in '{date_col}' are not regularly spaced. With scale > 1 the "
                 "rolling window sums consecutive rows, so gaps in the record will make "
@@ -305,7 +313,7 @@ class BaseStandardIndex:
             freq_col = "__freq_group__"
 
             if freq == "D":
-                df_copy[freq_col] = df_copy[date_col].dt.dayofyear
+                df_copy[freq_col] = df_copy[date_col].dt.day_of_year
             elif freq == "W":
                 df_copy[freq_col] = df_copy[date_col].dt.isocalendar().week.astype(int)
             elif freq == "M":
